@@ -1,0 +1,13 @@
+{
+	auto_https off
+}
+
+# API only. The Luminate proxy is the sole caller (server-to-server), so no CORS headers.
+:80 {
+	encode zstd gzip
+	reverse_proxy api:9000 {
+		transport fastcgi {
+			env SCRIPT_FILENAME /var/www/html/index.php
+		}
+	}
+}
