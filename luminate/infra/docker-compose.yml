@@ -1,0 +1,178 @@
+# Luminate-integration deployment of Wellms (API only). Run from this folder:
+#   pwsh ./bootstrap.ps1            # once: writes .env with generated secrets
+#   docker compose up -d --build
+name: luminate-wellms
+
+x-wellms-env: &wellms-env
+  APP_NAME: Wellms
+  APP_ENV: production
+  APP_DEBUG: "false"
+  APP_LOG_LEVEL: info
+  APP_KEY: ${APP_KEY:?run bootstrap.ps1}
+  APP_URL: http://${LAN_HOST:?}:${API_PORT:-8080}
+  DB_CONNECTION: pgsql
+  DB_HOST: postgres
+  DB_PORT: "5432"
+  DB_DATABASE: ${DB_NAME:-wellms}
+  REDIS_HOST: redis
+  REDIS_PORT: "6379"
+  REDIS_PASSWORD: ${REDIS_PASSWORD:?}
+  CACHE_DRIVER: redis
+  QUEUE_CONNECTION: redis
+  QUEUE_DRIVER: redis
+  SESSION_DRIVER: cookie
+  BROADCAST_DRIVER: "null"
+  MAIL_MAILER: log
+  MAIL_DRIVER: log
+  TRACKER_ENABLED: "false"
+  SENTRY_DSN: ""
+  FILESYSTEM_DRIVER: s3
+  SCORM_DISK: s3
+  H5P_AGGREGATE_ASSETS: "true"
+  AWS_ACCESS_KEY_ID: ${S3_ACCESS_KEY:?}
+  AWS_SECRET_ACCESS_KEY: ${S3_SECRET_KEY:?}
+  AWS_DEFAULT_REGION: us-east-1
+  AWS_BUCKET: ${S3_BUCKET:-wellms}
+  AWS_ENDPOINT: http://minio:9000
+  AWS_URL: http://${LAN_HOST}:${S3_PORT:-9000}/${S3_BUCKET:-wellms}
+  AWS_USE_PATH_STYLE_ENDPOINT: "true"
+  INITIAL_USER_EMAIL: ${INITIAL_USER_EMAIL:?}
+  INITIAL_USER_PASSWORD: ${INITIAL_USER_PASSWORD:?}
+  JWT_PUBLIC_KEY_BASE64: ${JWT_PUBLIC_KEY_BASE64:?}
+  JWT_PRIVATE_KEY_BASE64: ${JWT_PRIVATE_KEY_BASE64:?}
+
+services:
+  postgres:
+    image: postgres:16@sha256:a3b7f434b2dc57ce85a67e171163eb8ab1a1ebcb39d27484661f26b1dfbe30d6
+    environment:
+      POSTGRES_DB: ${DB_NAME:-wellms}
+      POSTGRES_USER: ${DB_BOOTSTRAP_USER:-db_bootstrap}
+      POSTGRES_PASSWORD: ${DB_BOOTSTRAP_PASSWORD:?}
+      DB_OWNER_USER: ${DB_OWNER_USER:-wellms_owner}
+      DB_OWNER_PASSWORD: ${DB_OWNER_PASSWORD:?}
+      DB_APP_USER: ${DB_APP_USER:-wellms_app}
+      DB_APP_PASSWORD: ${DB_APP_PASSWORD:?}
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+      - ./postgres/init:/docker-entrypoint-initdb.d:ro
+    healthcheck:
+      # -h 127.0.0.1: the temporary init-time server listens on the unix socket only, so a
+      # socket check would report healthy before the real server accepts TCP connections.
+      test: ["CMD-SHELL", "pg_isready -h 127.0.0.1 -U $${POSTGRES_USER} -d $${POSTGRES_DB}"]
+      interval: 5s
+      timeout: 5s
+      retries: 20
+    restart: unless-stopped
+
+  redis:
+    image: redis:7.2@sha256:747f1f4078d700806f83d427550a9d8c4d89dd3bf6491449c748c83ad285036e
+    command: ["redis-server", "--requirepass", "${REDIS_PASSWORD:?}", "--appendonly", "yes"]
+    volumes:
+      - redisdata:/data
+    healthcheck:
+      test: ["CMD-SHELL", "redis-cli -a $${REDIS_PASSWORD:-x} ping | grep -q PONG || exit 1"]
+      interval: 5s
+      timeout: 3s
+      retries: 20
+    environment:
+      REDIS_PASSWORD: ${REDIS_PASSWORD}
+    restart: unless-stopped
+
+  minio:
+    image: minio/minio@sha256:14cea493d9a34af32f524e538b8346cf79f3321eff8e708c1e2960462bd8936e
+    command: ["server", "/data", "--console-address", ":9001"]
+    environment:
+      MINIO_ROOT_USER: ${MINIO_ROOT_USER:?}
+      MINIO_ROOT_PASSWORD: ${MINIO_ROOT_PASSWORD:?}
+    volumes:
+      - miniodata:/data
+    ports:
+      - "${BIND_ADDR:-0.0.0.0}:${S3_PORT:-9000}:9000"
+    restart: unless-stopped
+
+  minio-init:
+    image: minio/mc@sha256:a7fe349ef4bd8521fb8497f55c6042871b2ae640607cf99d9bede5e9bdf11727
+    depends_on: [minio]
+    environment:
+      MINIO_ROOT_USER: ${MINIO_ROOT_USER}
+      MINIO_ROOT_PASSWORD: ${MINIO_ROOT_PASSWORD}
+      S3_BUCKET: ${S3_BUCKET:-wellms}
+      S3_ACCESS_KEY: ${S3_ACCESS_KEY}
+      S3_SECRET_KEY: ${S3_SECRET_KEY}
+    entrypoint: ["/bin/sh", "-c"]
+    command:
+      - |
+        set -eu
+        until mc alias set local http://minio:9000 "$$MINIO_ROOT_USER" "$$MINIO_ROOT_PASSWORD" >/dev/null 2>&1; do sleep 1; done
+        mc mb --ignore-existing "local/$$S3_BUCKET"
+        cat > /tmp/policy.json <<EOF
+        {"Version":"2012-10-17","Statement":[{"Effect":"Allow","Action":["s3:*"],"Resource":["arn:aws:s3:::$$S3_BUCKET","arn:aws:s3:::$$S3_BUCKET/*"]}]}
+        EOF
+        mc admin policy create local wellms-bucket-rw /tmp/policy.json
+        mc admin user add local "$$S3_ACCESS_KEY" "$$S3_SECRET_KEY"
+        mc admin policy attach local wellms-bucket-rw --user "$$S3_ACCESS_KEY" || mc admin user info local "$$S3_ACCESS_KEY" | grep -q wellms-bucket-rw
+        echo "minio init done"
+    restart: "no"
+
+  migrate:
+    build:
+      context: ../..
+      dockerfile: luminate/infra/Dockerfile
+    image: luminate/wellms:1.0.54
+    depends_on:
+      postgres: {condition: service_healthy}
+      redis: {condition: service_healthy}
+      minio-init: {condition: service_completed_successfully}
+    environment:
+      <<: *wellms-env
+      DB_USERNAME: ${DB_OWNER_USER:-wellms_owner}
+      DB_PASSWORD: ${DB_OWNER_PASSWORD}
+    volumes:
+      - ./scripts/migrate.sh:/migrate.sh:ro
+    entrypoint: ["/bin/sh", "/migrate.sh"]
+    healthcheck:
+      disable: true
+    restart: "no"
+
+  api:
+    image: luminate/wellms:1.0.54
+    pull_policy: never
+    depends_on:
+      migrate: {condition: service_completed_successfully}
+    environment:
+      <<: *wellms-env
+      DB_USERNAME: ${DB_APP_USER:-wellms_app}
+      DB_PASSWORD: ${DB_APP_PASSWORD}
+      DISABLE_HORIZON: "true"
+      DISABLE_SCHEDULER: "true"
+      DISABLE_DB_MIGRATE: "true"
+      DISABLE_DB_SEED: "true"
+    restart: unless-stopped
+
+  worker:
+    image: luminate/wellms:1.0.54
+    pull_policy: never
+    depends_on:
+      migrate: {condition: service_completed_successfully}
+    environment:
+      <<: *wellms-env
+      DB_USERNAME: ${DB_APP_USER:-wellms_app}
+      DB_PASSWORD: ${DB_APP_PASSWORD}
+      DISABLE_PHP_FPM: "true"
+      DISABLE_DB_MIGRATE: "true"
+      DISABLE_DB_SEED: "true"
+    restart: unless-stopped
+
+  caddy:
+    image: caddy@sha256:f2a1290d0463aad60660d4ec134943f183ee2a5f6c3eb7bf32dd984f2f020772
+    depends_on: [api]
+    volumes:
+      - ./caddy/Caddyfile:/etc/caddy/Caddyfile:ro
+    ports:
+      - "${BIND_ADDR:-0.0.0.0}:${API_PORT:-8080}:80"
+    restart: unless-stopped
+
+volumes:
+  pgdata:
+  redisdata:
+  miniodata:

@@ -1,0 +1,22 @@
+# Used instead of the repo's .dockerignore for this Dockerfile (BuildKit).
+.git
+.idea
+.env
+.env.*
+!.env.example
+/node_modules
+/vendor
+/storage/*.key
+storage
+*.pem
+*.cache
+.DS_Store
+docker/postgres-data
+docker/postgres-backups
+docker/minio_storage
+caddy
+docs
+/coverage
+# eval archive and infra secrets never go into the image
+luminate/archive
+luminate/infra/.env
