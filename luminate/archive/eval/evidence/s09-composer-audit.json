@@ -1,0 +1,488 @@
+{
+    "advisories": {
+        "composer/composer": [
+            {
+                "advisoryId": "PKSA-ddsx-fjz2-sbs3",
+                "packageName": "composer/composer",
+                "affectedVersions": ">=1.0,<2.2.30|>=2.3.0,<2.10.3",
+                "title": "Composer: GHSA-gjfg-22fp-rrxx fix bypass via symlinked package bin path",
+                "cve": "CVE-2026-59944",
+                "link": "https://github.com/advisories/GHSA-96h3-5x6v-m776",
+                "reportedAt": "2026-10-02T19:14:34+00:00",
+                "sources": [
+                    {
+                        "name": "GitHub",
+                        "remoteId": "GHSA-96h3-5x6v-m776"
+                    }
+                ],
+                "severity": "medium"
+            },
+            {
+                "advisoryId": "PKSA-ym19-cy3j-z6df",
+                "packageName": "composer/composer",
+                "affectedVersions": ">=1.0,<2.2.30|>=2.3.0,<2.10.3",
+                "title": "Composer arbitrary command execution via a malicious package's Perforce source URL",
+                "cve": "CVE-2026-84361",
+                "link": "https://github.com/advisories/GHSA-rvx4-ffvw-m9q3",
+                "reportedAt": "2026-09-08T21:25:41+00:00",
+                "sources": [
+                    {
+                        "name": "GitHub",
+                        "remoteId": "GHSA-rvx4-ffvw-m9q3"
+                    }
+                ],
+                "severity": "high"
+            }
+        ],
+        "dompdf/dompdf": [
+            {
+                "advisoryId": "PKSA-cv56-2228-pzr6",
+                "packageName": "dompdf/dompdf",
+                "affectedVersions": "<3.1.6",
+                "title": "Dompdf: Embedded SVG images can leak existence of files and directories within the filesystem",
+                "cve": "CVE-2026-59943",
+                "link": "https://github.com/advisories/GHSA-j8qw-6jw8-r297",
+                "reportedAt": "2026-07-22T22:52:44+00:00",
+                "sources": [
+                    {
+                        "name": "GitHub",
+                        "remoteId": "GHSA-j8qw-6jw8-r297"
+                    }
+                ],
+                "severity": "medium"
+            },
+            {
+                "advisoryId": "PKSA-6r8f-nxsb-67bq",
+                "packageName": "dompdf/dompdf",
+                "affectedVersions": "<3.1.6",
+                "title": "Dompdf: Denial of Service (DoS) via Resource Exhaustion using Oversized Image Bitmaps",
+                "cve": "CVE-2026-59942",
+                "link": "https://github.com/advisories/GHSA-f5gf-2cj8-52g2",
+                "reportedAt": "2026-07-22T22:51:40+00:00",
+                "sources": [
+                    {
+                        "name": "GitHub",
+                        "remoteId": "GHSA-f5gf-2cj8-52g2"
+                    }
+                ],
+                "severity": "medium"
+            },
+            {
+                "advisoryId": "PKSA-gh7h-hhy4-byg7",
+                "packageName": "dompdf/dompdf",
+                "affectedVersions": "<3.1.6",
+                "title": "Dompdf: Uncontrolled resource consumption based on declared BMP dimensions",
+                "cve": "CVE-2026-59941",
+                "link": "https://github.com/advisories/GHSA-8hg6-c449-896m",
+                "reportedAt": "2026-07-22T22:50:34+00:00",
+                "sources": [
+                    {
+                        "name": "GitHub",
+                        "remoteId": "GHSA-8hg6-c449-896m"
+                    }
+                ],
+                "severity": "medium"
+            },
+            {
+                "advisoryId": "PKSA-mwt3-h9tv-kx78",
+                "packageName": "dompdf/dompdf",
+                "affectedVersions": "<3.1.6",
+                "title": "Dompdf: Local file read due to improper file path validation in SVG images encoded as data-URI",
+                "cve": "CVE-2026-56722",
+                "link": "https://github.com/advisories/GHSA-cx96-42px-69fm",
+                "reportedAt": "2026-07-22T21:30:01+00:00",
+                "sources": [
+                    {
+                        "name": "GitHub",
+                        "remoteId": "GHSA-cx96-42px-69fm"
+                    }
+                ],
+                "severity": "medium"
+            },
+            {
+                "advisoryId": "PKSA-hp6n-n4kz-21wk",
+                "packageName": "dompdf/dompdf",
+                "affectedVersions": "<3.1.6",
+                "title": "Dompdf: File existence oracle via font-face stylesheet declaration",
+                "cve": "CVE-2026-55555",
+                "link": "https://github.com/advisories/GHSA-7x2p-4jvh-6384",
+                "reportedAt": "2026-07-22T21:07:07+00:00",
+                "sources": [
+                    {
+                        "name": "GitHub",
+                        "remoteId": "GHSA-7x2p-4jvh-6384"
+                    }
+                ],
+                "severity": "low"
+            },
+            {
+                "advisoryId": "PKSA-mckv-s5hg-868k",
+                "packageName": "dompdf/dompdf",
+                "affectedVersions": "<3.1.6",
+                "title": "Dompdf: Chroot Validation Bypass",
+                "cve": "CVE-2026-55554",
+                "link": "https://github.com/advisories/GHSA-wvh6-f5jh-8gw4",
+                "reportedAt": "2026-07-22T21:06:48+00:00",
+                "sources": [
+                    {
+                        "name": "GitHub",
+                        "remoteId": "GHSA-wvh6-f5jh-8gw4"
+                    }
+                ],
+                "severity": "low"
+            }
+        ],
+        "firebase/php-jwt": [
+            {
+                "advisoryId": "PKSA-y2cr-5h3j-g3ys",
+                "packageName": "firebase/php-jwt",
+                "affectedVersions": "<7.0.0",
+                "title": "php-jwt contains weak encryption",
+                "cve": "CVE-2025-45769",
+                "link": "https://github.com/advisories/GHSA-2x45-7fc3-mxwq",
+                "reportedAt": "2025-07-31T21:31:53+00:00",
+                "sources": [
+                    {
+                        "name": "GitHub",
+                        "remoteId": "GHSA-2x45-7fc3-mxwq"
+                    }
+                ],
+                "severity": "low"
+            }
+        ],
+        "laravel/framework": [
+            {
+                "advisoryId": "PKSA-d5tc-s1qs-h781",
+                "packageName": "laravel/framework",
+                "affectedVersions": ">=13.0.0,<13.30.0|<12.69.0",
+                "title": "Laravel: XSS in Debug Page Information",
+                "cve": "CVE-2026-102279",
+                "link": "https://github.com/advisories/GHSA-jh5r-qr3c-85q8",
+                "reportedAt": "2026-09-29T18:24:25+00:00",
+                "sources": [
+                    {
+                        "name": "GitHub",
+                        "remoteId": "GHSA-jh5r-qr3c-85q8"
+                    }
+                ],
+                "severity": "low"
+            },
+            {
+                "advisoryId": "PKSA-m5cs-t1y6-qpcs",
+                "packageName": "laravel/framework",
+                "affectedVersions": "<12.61.1|>=13.0.0,<13.12.0",
+                "title": "Laravel Framework: Temporary Signed URL Path Confusion",
+                "cve": null,
+                "link": "https://github.com/advisories/GHSA-crmm-hgp2-wgrp",
+                "reportedAt": "2026-06-17T13:54:13+00:00",
+                "sources": [
+                    {
+                        "name": "GitHub",
+                        "remoteId": "GHSA-crmm-hgp2-wgrp"
+                    }
+                ],
+                "severity": "medium"
+            },
+            {
+                "advisoryId": "PKSA-3r5d-mb8f-1qw9",
+                "packageName": "laravel/framework",
+                "affectedVersions": "<12.60.0|>=13.0.0,<=13.9.0",
+                "title": "Laravel Framework: CRLF injection in default email rule ",
+                "cve": null,
+                "link": "https://github.com/advisories/GHSA-5vg9-5847-vvmq",
+                "reportedAt": "2026-06-17T13:53:44+00:00",
+                "sources": [
+                    {
+                        "name": "GitHub",
+                        "remoteId": "GHSA-5vg9-5847-vvmq"
+                    }
+                ],
+                "severity": "high"
+            },
+            {
+                "advisoryId": "PKSA-mdq4-51ck-6kdq",
+                "packageName": "laravel/framework",
+                "affectedVersions": ">=9.0.0,<10.0.0|>=10.0.0,<11.0.0|>=11.0.0,<12.0.0|>=12.0.0,<12.60.0|>=13.0.0,<13.10.0",
+                "title": "Laravel CRLF injection in default email rule",
+                "cve": "CVE-2026-48019",
+                "link": "https://github.com/laravel/framework/security/advisories/GHSA-5vg9-5847-vvmq",
+                "reportedAt": "2026-05-19T18:13:00+00:00",
+                "sources": [
+                    {
+                        "name": "FriendsOfPHP/security-advisories",
+                        "remoteId": "laravel/framework/CVE-2026-48019.yaml"
+                    }
+                ],
+                "severity": null
+            },
+            {
+                "advisoryId": "PKSA-8qx3-n5y5-vvnd",
+                "packageName": "laravel/framework",
+                "affectedVersions": "<10.48.29|>=11.0.0,<11.44.1|>=12.0.0,<12.1.1",
+                "title": "Laravel has a File Validation Bypass",
+                "cve": "CVE-2025-27515",
+                "link": "https://github.com/advisories/GHSA-78fx-h6xr-vch4",
+                "reportedAt": "2025-03-05T19:09:39+00:00",
+                "sources": [
+                    {
+                        "name": "GitHub",
+                        "remoteId": "GHSA-78fx-h6xr-vch4"
+                    }
+                ],
+                "severity": "medium"
+            }
+        ],
+        "league/commonmark": [
+            {
+                "advisoryId": "PKSA-m2dq-1fhr-29b1",
+                "packageName": "league/commonmark",
+                "affectedVersions": ">=1.3.0,<=2.10.1",
+                "title": "league/commonmark: DisallowedRawHtml bypassed when a disallowed tag name ends the raw-HTML literal",
+                "cve": null,
+                "link": "https://github.com/advisories/GHSA-97jj-33gv-5xf9",
+                "reportedAt": "2026-09-30T15:36:33+00:00",
+                "sources": [
+                    {
+                        "name": "GitHub",
+                        "remoteId": "GHSA-97jj-33gv-5xf9"
+                    }
+                ],
+                "severity": "medium"
+            },
+            {
+                "advisoryId": "PKSA-m4t9-vsgq-8khn",
+                "packageName": "league/commonmark",
+                "affectedVersions": ">=2.0.0,<=2.10.1",
+                "title": "league/commonmark: Quadratic-time denial of service in the GitHub Flavored Markdown Table extension block-start scan",
+                "cve": null,
+                "link": "https://github.com/advisories/GHSA-3q6v-r5mr-hxv8",
+                "reportedAt": "2026-09-30T15:36:13+00:00",
+                "sources": [
+                    {
+                        "name": "GitHub",
+                        "remoteId": "GHSA-3q6v-r5mr-hxv8"
+                    }
+                ],
+                "severity": "high"
+            },
+            {
+                "advisoryId": "PKSA-zyf5-hrxv-hrd7",
+                "packageName": "league/commonmark",
+                "affectedVersions": ">=1.5.0,<2.10.0",
+                "title": "league/commonmark: Denial of service via distinctly-named attributes in the Attributes extension",
+                "cve": null,
+                "link": "https://github.com/advisories/GHSA-8rr7-cvq3-gmfh",
+                "reportedAt": "2026-09-01T20:28:40+00:00",
+                "sources": [
+                    {
+                        "name": "GitHub",
+                        "remoteId": "GHSA-8rr7-cvq3-gmfh"
+                    }
+                ],
+                "severity": "high"
+            },
+            {
+                "advisoryId": "PKSA-nv44-1b4d-6gjg",
+                "packageName": "league/commonmark",
+                "affectedVersions": ">=1.5.0,<2.9.1",
+                "title": "league/commonmark: Denial of service in the SmartPunct and Attributes extensions",
+                "cve": null,
+                "link": "https://github.com/advisories/GHSA-jjv6-8j6v-6j52",
+                "reportedAt": "2026-09-01T20:21:45+00:00",
+                "sources": [
+                    {
+                        "name": "GitHub",
+                        "remoteId": "GHSA-jjv6-8j6v-6j52"
+                    }
+                ],
+                "severity": "high"
+            },
+            {
+                "advisoryId": "PKSA-kr3s-894t-g5w2",
+                "packageName": "league/commonmark",
+                "affectedVersions": ">=2.7.0,<2.9.1",
+                "title": "league/commonmark XSS: `on*` event-handler filter in `AttributesExtension` bypassed with a U+000C form feed",
+                "cve": null,
+                "link": "https://github.com/advisories/GHSA-f8fg-pg57-v4j8",
+                "reportedAt": "2026-09-01T20:18:29+00:00",
+                "sources": [
+                    {
+                        "name": "GitHub",
+                        "remoteId": "GHSA-f8fg-pg57-v4j8"
+                    }
+                ],
+                "severity": "high"
+            },
+            {
+                "advisoryId": "PKSA-9q1p-3s19-bp1q",
+                "packageName": "league/commonmark",
+                "affectedVersions": ">=0.6.0,<2.9.1",
+                "title": "league/commonmark: Denial of service via crafted code fences, reference links, and emphasis delimiters",
+                "cve": null,
+                "link": "https://github.com/advisories/GHSA-j8pm-gj4c-rq4x",
+                "reportedAt": "2026-09-01T20:17:59+00:00",
+                "sources": [
+                    {
+                        "name": "GitHub",
+                        "remoteId": "GHSA-j8pm-gj4c-rq4x"
+                    }
+                ],
+                "severity": "high"
+            },
+            {
+                "advisoryId": "PKSA-5mzr-szzf-z6cn",
+                "packageName": "league/commonmark",
+                "affectedVersions": ">=2.0.0,<2.9.0",
+                "title": "league/commonmark: Denial of service via deeply nested XML output",
+                "cve": null,
+                "link": "https://github.com/advisories/GHSA-mj63-m3rc-8ppr",
+                "reportedAt": "2026-08-06T20:42:54+00:00",
+                "sources": [
+                    {
+                        "name": "GitHub",
+                        "remoteId": "GHSA-mj63-m3rc-8ppr"
+                    }
+                ],
+                "severity": "medium"
+            },
+            {
+                "advisoryId": "PKSA-cqd6-fg4n-nxpf",
+                "packageName": "league/commonmark",
+                "affectedVersions": ">=2.0.0,<2.9.0",
+                "title": "league/commonmark: Denial of service via colliding heading slugs",
+                "cve": null,
+                "link": "https://github.com/advisories/GHSA-mh25-x5hq-wrqp",
+                "reportedAt": "2026-08-06T20:41:45+00:00",
+                "sources": [
+                    {
+                        "name": "GitHub",
+                        "remoteId": "GHSA-mh25-x5hq-wrqp"
+                    }
+                ],
+                "severity": "high"
+            },
+            {
+                "advisoryId": "PKSA-1q6p-sqkj-8mmj",
+                "packageName": "league/commonmark",
+                "affectedVersions": ">=1.5.0,<2.9.0",
+                "title": "league/commonmark:  Denial of service via duplicate footnote definitions",
+                "cve": null,
+                "link": "https://github.com/advisories/GHSA-jfm3-95jq-q3rf",
+                "reportedAt": "2026-08-06T20:40:53+00:00",
+                "sources": [
+                    {
+                        "name": "GitHub",
+                        "remoteId": "GHSA-jfm3-95jq-q3rf"
+                    }
+                ],
+                "severity": "high"
+            },
+            {
+                "advisoryId": "PKSA-mc58-w91n-f5gv",
+                "packageName": "league/commonmark",
+                "affectedVersions": ">=1.5.0,<2.9.0",
+                "title": "league/commonmark: Denial of service via adjacent inline attribute blocks",
+                "cve": null,
+                "link": "https://github.com/advisories/GHSA-g2gp-3wwq-f4ph",
+                "reportedAt": "2026-08-06T20:39:52+00:00",
+                "sources": [
+                    {
+                        "name": "GitHub",
+                        "remoteId": "GHSA-g2gp-3wwq-f4ph"
+                    }
+                ],
+                "severity": "high"
+            },
+            {
+                "advisoryId": "PKSA-t21r-vtr5-3mdz",
+                "packageName": "league/commonmark",
+                "affectedVersions": ">=0.6.0,<2.9.0",
+                "title": "league/commonmark: Quadratic-time denial of service when parsing crafted Markdown",
+                "cve": "CVE-2026-71488",
+                "link": "https://github.com/advisories/GHSA-2q4p-g7hv-5rgv",
+                "reportedAt": "2026-08-06T20:37:20+00:00",
+                "sources": [
+                    {
+                        "name": "GitHub",
+                        "remoteId": "GHSA-2q4p-g7hv-5rgv"
+                    }
+                ],
+                "severity": "high"
+            },
+            {
+                "advisoryId": "PKSA-scnn-p8mm-jbft",
+                "packageName": "league/commonmark",
+                "affectedVersions": ">=1.5.0,<=2.8.3",
+                "title": "league/commonmark: AttributesExtension href/src unsafe-link filter bypass via embedded control bytes",
+                "cve": "CVE-2026-71478",
+                "link": "https://github.com/advisories/GHSA-29pj-957v-52mc",
+                "reportedAt": "2026-08-06T20:30:39+00:00",
+                "sources": [
+                    {
+                        "name": "GitHub",
+                        "remoteId": "GHSA-29pj-957v-52mc"
+                    }
+                ],
+                "severity": "medium"
+            }
+        ],
+        "league/flysystem": [
+            {
+                "advisoryId": "PKSA-w9tt-7782-78jx",
+                "packageName": "league/flysystem",
+                "affectedVersions": "<=3.35.2",
+                "title": "Flysystem: WhitespacePathNormalizer's control-character (CorruptedPathDetected) check is bypassed by malformed UTF-8 in the path, affecting every adapter",
+                "cve": "CVE-2026-102601",
+                "link": "https://github.com/advisories/GHSA-cxf4-7mrp-vvpr",
+                "reportedAt": "2026-09-29T18:10:14+00:00",
+                "sources": [
+                    {
+                        "name": "GitHub",
+                        "remoteId": "GHSA-cxf4-7mrp-vvpr"
+                    }
+                ],
+                "severity": "low"
+            }
+        ],
+        "maatwebsite/excel": [
+            {
+                "advisoryId": "PKSA-xgss-dh88-nswy",
+                "packageName": "maatwebsite/excel",
+                "affectedVersions": ">=3.1.8,<3.1.70",
+                "title": "Laravel Excel writes exports outside the configured filesystem disk when given a caller-controlled path",
+                "cve": "CVE-2026-84374",
+                "link": "https://github.com/advisories/GHSA-c7r6-vx3h-w5g2",
+                "reportedAt": "2026-09-08T20:40:47+00:00",
+                "sources": [
+                    {
+                        "name": "GitHub",
+                        "remoteId": "GHSA-c7r6-vx3h-w5g2"
+                    }
+                ],
+                "severity": "high"
+            }
+        ],
+        "phpseclib/phpseclib": [
+            {
+                "advisoryId": "PKSA-12sz-bcny-pk4m",
+                "packageName": "phpseclib/phpseclib",
+                "affectedVersions": ">=4.0.0,<4.0.1|<3.0.57",
+                "title": "phpseclib — non-constant-time X25519 scalar multiplication permits full private-key recovery",
+                "cve": "CVE-2026-84308",
+                "link": "https://github.com/advisories/GHSA-q97c-8qh3-fpc6",
+                "reportedAt": "2026-09-08T21:24:29+00:00",
+                "sources": [
+                    {
+                        "name": "GitHub",
+                        "remoteId": "GHSA-q97c-8qh3-fpc6"
+                    }
+                ],
+                "severity": "medium"
+            }
+        ]
+    },
+    "abandoned": {
+        "doctrine/annotations": null,
+        "intervention/imagecache": null
+    }
+}

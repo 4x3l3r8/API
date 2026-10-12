@@ -1,0 +1,49 @@
+CREATE FUNCTION
+DROP EVENT TRIGGER
+psql:/tmp/p20.sql:14: NOTICE:  event trigger "pooled_auto_tenant_trg" does not exist, skipping
+CREATE EVENT TRIGGER
+SET
+CREATE TABLE
+RESET
+       relname       | rls | forced 
+---------------------+-----+--------
+ future_wellms_table | t   | t
+(1 row)
+ column_name |                column_default                
+-------------+----------------------------------------------
+ tenant_id   | current_setting('app.tenant_id'::text, true)
+(1 row)
+    policyname    
+------------------
+ tenant_isolation
+(1 row)
+SET
+     set_config     
+--------------------
+ pooled-c.localhost
+(1 row)
+INSERT 0 1
+     set_config     
+--------------------
+ pooled-d.localhost
+(1 row)
+INSERT 0 1
+    ?column?    
+----------------
+ D sees rows: 1
+(1 row)
+ set_config 
+------------
+ 
+(1 row)
+        ?column?        
+------------------------
+ no tenant sees rows: 0
+(1 row)
+RESET
+               ?column?                
+---------------------------------------
+ superuser (bypasses RLS) sees rows: 2
+(1 row)
+DROP TABLE
+DROP EVENT TRIGGER

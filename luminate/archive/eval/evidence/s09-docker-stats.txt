@@ -1,0 +1,12 @@
+wellms-admin-1|0.00%|12.25MiB / 15.54GiB
+wellms-adminer-1|0.00%|8.469MiB / 15.54GiB
+wellms-api-1|82.37%|457MiB / 15.54GiB
+wellms-caddy-1|0.00%|11.4MiB / 15.54GiB
+wellms-front-1|0.00%|12.58MiB / 15.54GiB
+wellms-mailhog-1|0.00%|3.242MiB / 15.54GiB
+wellms-minio-1|0.00%|267.6MiB / 15.54GiB
+wellms-mjml-1|0.00%|32.68MiB / 15.54GiB
+wellms-postgres-1|0.95%|95.45MiB / 15.54GiB
+wellms-redis-1|1.30%|8.379MiB / 15.54GiB
+wellms-reportbro-1|0.00%|48.13MiB / 15.54GiB
+wellms-soketi-1|0.63%|43.81MiB / 15.54GiB

@@ -1,0 +1,7 @@
+﻿# Eval archive: secrets and bulky logs stay out of git
+*.log
+.admin_token
+.ta
+.tb
+__pycache__/
+s00-login.json

@@ -1,0 +1,10 @@
+Run 1: owner C reads first (cold cache)
+  C reads own quiz                             -> 200
+  D reads C's quiz (RLS must hide it)          -> 200
+  C reads own quiz again                       -> 200
+Run 2: attacker/other tenant D reads first (cold cache)
+  D reads C's quiz                             -> 404
+  C reads own quiz (poisoned by D's miss?)     -> 404
+Run 3: owner reads, then cache is NOT cleared, D reads (does D get C's cached row?)
+  C reads own quiz                             -> 200
+  D reads C's quiz (warm cache)                -> 200

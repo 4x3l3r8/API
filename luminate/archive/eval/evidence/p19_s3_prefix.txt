@@ -1,0 +1,4 @@
+pooled-c.localhost: put('course/5/topic/9/video/file.mp4') url=http://storage.localhost/pooled/tenants/pooled-c.localhost/course/5/topic/9/video/file.mp4  readback=x-pooled-c.localhost
+pooled-d.localhost: put('course/5/topic/9/video/file.mp4') url=http://storage.localhost/pooled/tenants/pooled-d.localhost/course/5/topic/9/video/file.mp4  readback=x-pooled-d.localhost
+[2026-10-08 19:59:45 UTC]    20B STANDARD pooled-c.localhost/course/5/topic/9/video/file.mp4
+[2026-10-08 19:59:45 UTC]    20B STANDARD pooled-d.localhost/course/5/topic/9/video/file.mp4

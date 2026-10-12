@@ -1,0 +1,4 @@
+dispatched 2 jobs
+  ProbeJob lines printed by the ONE shared worker: 4
+19:59:17 | label=job from C | ctx='pooled-c.localhost' | guc='pooled-c.localhost' | visible courses=1 users=2
+19:59:17 | label=job from D | ctx='pooled-d.localhost' | guc='pooled-d.localhost' | visible courses=1 users=1

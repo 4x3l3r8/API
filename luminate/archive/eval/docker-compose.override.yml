@@ -1,0 +1,25 @@
+# Local eval overrides. The repo's own docker-compose.yml is left untouched.
+# Usage (from this folder):
+#   docker compose -f api/docker-compose.yml -f docker-compose.override.yml --project-directory api -p wellms up -d --build
+services:
+  caddy:
+    # host 80/443 are held by the Windows System process (PID 4)
+    ports: !override
+      - "8080:80"
+      - "8443:443"
+  api:
+    # the repo bind-mounts ./ over /var/www/html, which hides the image's vendor/ dir;
+    # use the image filesystem instead
+    volumes: !reset []
+  postgres:
+    # avoid Windows bind-mount permission problems with postgres data dir
+    volumes: !override
+      - pgdata:/var/lib/postgresql/data
+  minio:
+    # bitnami/minio:latest was removed from Docker Hub; legacy mirror has the same interface
+    image: bitnamilegacy/minio:latest
+    volumes: !override
+      - miniodata:/bitnami/minio/data
+volumes:
+  pgdata:
+  miniodata:

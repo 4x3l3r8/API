@@ -1,0 +1,5 @@
+A) after clearing the cache, D asks for C's quiz first:
+  D reads C quiz (cold cache)                -> 404
+B) C reads its own quiz (populates the cache), then D asks again:
+  C reads own quiz                           -> 404
+  D reads C quiz (warm cache)                -> 404

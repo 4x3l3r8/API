@@ -1,0 +1,22 @@
+EscolaLMS/API: stars=19 forks=19 open_issues(+PRs)=0 license=Apache-2.0 default=develop created=2021-01-26 pushed=2026-07-29 (71d ago) archived=False
+rate remaining: 51
+latest releases: [('1.0.54', '2026-07-29'), ('1.0.53', '2026-07-29'), ('1.0.52', '2026-07-28'), ('1.0.51', '2026-06-17'), ('1.0.50', '2026-05-28')]
+latest tags: ['v0.0.1', '1.0.54', '1.0.53', '1.0.52', '1.0.51']
+last 100 commits span: 2025-01-17 -> 2026-07-29
+commits by month (last 100): [('2025-01', 16), ('2025-05', 2), ('2025-06', 3), ('2025-08', 12), ('2025-09', 2), ('2025-11', 9), ('2026-02', 4), ('2026-03', 23), ('2026-04', 16), ('2026-05', 5), ('2026-06', 1), ('2026-07', 7)]
+authors in last 100 commits: [('Witold Wiśniewski', 46), ('Maciej Rymarz', 30), ('Mateusz Wojczal', 14), ('Witold Wiśniewski', 10)]
+contributors (top 30): 15 | top5: [('qunabu', 427), ('mateusz-wojczal', 177), ('mako321', 129), ('HerbertIV', 82), ('pa-cholek', 49)] | top1 share: 42%
+open issues: 0 | open PRs: 0 | closed issues: 76
+--- key package repos
+  Courses        pushed=2025-08-08 (426d) stars=5 open=0 license=MIT archived=False
+  Auth           pushed=2026-05-26 (135d) stars=2 open=0 license=MIT archived=False
+  TopicTypeGift  404
+  TopicTypes     404
+  Scorm          pushed=2025-01-23 (623d) stars=13 open=0 license=MIT archived=False
+  HeadlessH5P    404
+  Admin          pushed=2026-09-29 (9d) stars=4 open=45 license=None archived=False
+  Front          pushed=2026-08-03 (66d) stars=8 open=7 license=None archived=False
+  Core           pushed=2024-07-11 (819d) stars=4 open=0 license=MIT archived=False
+  Lrs            pushed=2024-07-10 (820d) stars=7 open=0 license=MIT archived=False
+  Video          pushed=2026-07-31 (69d) stars=0 open=0 license=MIT archived=False
+org: {'public_repos': 78, 'followers': 59, 'created_at': '2021-01-19T15:22:21Z'}

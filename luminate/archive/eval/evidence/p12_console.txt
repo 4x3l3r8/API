@@ -1,0 +1,5 @@
+console, no tenant context : Course::count() = 2  (fails OPEN: all tenants)
+console, forced tenant C    : Course::count() = 1
+console, forced tenant D    : Course::count() = 1
+cache prefix in this domain : pooled_cache
+filesystems s3 root/url/bucket: {"root":null,"url":"http:\/\/storage.localhost\/pooled","bucket":"pooled"}

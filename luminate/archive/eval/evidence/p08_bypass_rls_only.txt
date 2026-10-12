@@ -1,0 +1,28 @@
+1) Validation-rule bypass: D linked C's user (id 2) to D's course (id 3) via exists: rule
+   course_user rows: 2|2
+   course 3 tenant: pooled-d.localhost | user 2 tenant: pooled-c.localhost
+2) Cross-tenant pivot consequences: what can carol (tenant C) now do?
+   carol on C /api/courses/my: {'ids': [2]}
+   carol on C reads D's course 3: 404
+   carol's C-token on D host /api/profile/me: 401 Unauthenticated.
+   carol's C-token on D host /api/courses/my: 401 Unauthenticated.
+   carol's C-token on D host /api/courses/3: 404 Course not found
+3) Reports/metrics (raw DB:: joins) from D: do they include C's data?
+   CoursesPopularityMetric      as C: 200 CONTAINS C-CONFIDENTIAL | a", "data": [{"label": "C-CONFIDENTIAL course", "value": 1, "measurable_id": 2, "measurable_type": "
+   CoursesPopularityMetric      as D: 200 no C marker | a", "data": [{"label": "D-own course", "value": 0, "measurable_id": 3, "measurable_type": "EscolaLms
+   CoursesMoneySpentMetric      as C: 200 no C marker | a", "data": []}
+   CoursesMoneySpentMetric      as D: 200 no C marker | a", "data": []}
+   CoursesSecondsSpentMetric    as C: 200 no C marker | a", "data": []}
+   CoursesSecondsSpentMetric    as D: 200 no C marker | a", "data": []}
+   TutorsPopularityMetric       as C: 200 no C marker | a", "data": [{"label": "admin@pooled.test", "value": 1, "measurable_id": 1, "measurable_type": "Esco
+   TutorsPopularityMetric       as D: 200 no C marker | a", "data": []}
+   CoursesBestRatedMetric       as C: 200 no C marker | a", "data": []}
+   CoursesBestRatedMetric       as D: 200 no C marker | a", "data": []}
+   CoursesTopSellingMetric      as C: 200 no C marker | a", "data": []}
+   CoursesTopSellingMetric      as D: 200 no C marker | a", "data": []}
+4) Course stats of D's own course after the foreign link (does D now see C's user data?)
+   200 carol@c.test in D's stats: False
+5) Aggregates & dashboards
+   /api/admin/stats/available: 200 no C marker
+   /api/admin/orders?per_page=5: 200 no C marker
+   /api/admin/users?per_page=5&role=student: 200 no C marker

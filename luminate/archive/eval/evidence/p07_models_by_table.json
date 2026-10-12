@@ -1,0 +1,354 @@
+{
+    "aggregated_frames": [
+        "EscolaLms\\Recommender\\Models\\AggregatedFrame"
+    ],
+    "bookmarks": [
+        "EscolaLms\\Bookmarks\\Models\\Bookmark"
+    ],
+    "bulk_notification_sections": [
+        "EscolaLms\\BulkNotifications\\Models\\BulkNotificationSection"
+    ],
+    "bulk_notification_user": [
+        "EscolaLms\\BulkNotifications\\Models\\BulkNotificationUser"
+    ],
+    "bulk_notifications": [
+        "EscolaLms\\BulkNotifications\\Models\\BulkNotification"
+    ],
+    "cart_items": [
+        "EscolaLms\\Cart\\Models\\CartItem",
+        "EscolaLms\\Vouchers\\Models\\CartItem"
+    ],
+    "carts": [
+        "EscolaLms\\Cart\\Models\\Cart",
+        "EscolaLms\\Vouchers\\Models\\Cart"
+    ],
+    "categories": [
+        "EscolaLms\\Cart\\Models\\Category",
+        "EscolaLms\\Categories\\Models\\Category",
+        "EscolaLms\\Dictionaries\\Models\\Category",
+        "EscolaLms\\Vouchers\\Models\\Category"
+    ],
+    "cmi5_aus": [
+        "EscolaLms\\Cmi5\\Models\\Cmi5Au"
+    ],
+    "cmi5s": [
+        "EscolaLms\\Cmi5\\Models\\Cmi5"
+    ],
+    "config": [
+        "EscolaLms\\Settings\\Models\\Config"
+    ],
+    "consultation_access_enquiries": [
+        "EscolaLms\\ConsultationAccess\\Models\\ConsultationAccessEnquiry"
+    ],
+    "consultation_access_enquiry_proposed_terms": [
+        "EscolaLms\\ConsultationAccess\\Models\\ConsultationAccessEnquiryProposedTerm"
+    ],
+    "consultation_proposed_terms": [
+        "EscolaLms\\Consultations\\Models\\ConsultationProposedTerm"
+    ],
+    "consultation_user": [
+        "EscolaLms\\Consultations\\Models\\ConsultationUserPivot"
+    ],
+    "consultation_user_terms": [
+        "EscolaLms\\Consultations\\Models\\ConsultationUserTerm"
+    ],
+    "consultations": [
+        "EscolaLms\\ConsultationAccess\\Models\\Consultation",
+        "EscolaLms\\Consultations\\Models\\Consultation",
+        "App\\Models\\Consultation"
+    ],
+    "coupon_user": [
+        "EscolaLms\\Vouchers\\Models\\CouponUser"
+    ],
+    "coupons": [
+        "EscolaLms\\Vouchers\\Models\\Coupon"
+    ],
+    "coupons_categories": [
+        "EscolaLms\\Vouchers\\Models\\CouponCategory"
+    ],
+    "coupons_products": [
+        "EscolaLms\\Vouchers\\Models\\CouponProduct"
+    ],
+    "course_access_enquiries": [
+        "EscolaLms\\CourseAccess\\Models\\CourseAccessEnquiry"
+    ],
+    "course_author": [
+        "EscolaLms\\Courses\\Models\\CourseAuthorPivot"
+    ],
+    "course_group": [
+        "EscolaLms\\Courses\\Models\\CourseGroupPivot"
+    ],
+    "course_progress": [
+        "EscolaLms\\Courses\\Models\\CourseProgress"
+    ],
+    "course_user": [
+        "EscolaLms\\Courses\\Models\\CourseUserPivot"
+    ],
+    "course_user_attendances": [
+        "EscolaLms\\Courses\\Models\\CourseUserAttendance"
+    ],
+    "courses": [
+        "EscolaLms\\CourseAccess\\Models\\Course",
+        "EscolaLms\\CoursesImportExport\\Models\\Course",
+        "EscolaLms\\Courses\\Models\\Course",
+        "EscolaLms\\Recommender\\Models\\Course",
+        "App\\Models\\Course"
+    ],
+    "device_tokens": [
+        "EscolaLms\\BulkNotifications\\Models\\DeviceToken"
+    ],
+    "dictionaries": [
+        "EscolaLms\\Dictionaries\\Models\\Dictionary",
+        "App\\Models\\Dictionary"
+    ],
+    "dictionary_user": [
+        "EscolaLms\\Dictionaries\\Models\\DictionaryUser"
+    ],
+    "dictionary_word_category": [
+        "EscolaLms\\Dictionaries\\Models\\DictionaryWordCategory"
+    ],
+    "dictionary_words": [
+        "EscolaLms\\Dictionaries\\Models\\DictionaryWord"
+    ],
+    "fabric_pdfs": [
+        "EscolaLms\\TemplatesPdf\\Models\\FabricPDF"
+    ],
+    "group_user": [
+        "EscolaLms\\Auth\\Models\\GroupUser"
+    ],
+    "groups": [
+        "EscolaLms\\Auth\\Models\\Group",
+        "EscolaLms\\Courses\\Models\\Group",
+        "EscolaLms\\CsvUsers\\Models\\Group"
+    ],
+    "h5p_user_progress": [
+        "EscolaLms\\Courses\\Models\\H5PUserProgress"
+    ],
+    "hh5p_contents": [
+        "EscolaLms\\HeadlessH5P\\Models\\H5PContent"
+    ],
+    "hh5p_contents_libraries": [
+        "EscolaLms\\HeadlessH5P\\Models\\H5PContentLibrary"
+    ],
+    "hh5p_libraries": [
+        "EscolaLms\\HeadlessH5P\\Models\\H5PLibrary"
+    ],
+    "hh5p_libraries_dependencies": [
+        "EscolaLms\\HeadlessH5P\\Models\\H5PLibraryDependency"
+    ],
+    "hh5p_libraries_hub_cache": [
+        "EscolaLms\\HeadlessH5P\\Models\\H5pLibrariesHubCache"
+    ],
+    "hh5p_libraries_languages": [
+        "EscolaLms\\HeadlessH5P\\Models\\H5PLibraryLanguage"
+    ],
+    "hh5p_temp_files": [
+        "EscolaLms\\HeadlessH5P\\Models\\H5PTempFile"
+    ],
+    "image_caches": [
+        "EscolaLms\\Images\\Models\\ImageCache"
+    ],
+    "language_lines": [
+        "EscolaLms\\Translations\\Models\\LanguageLine"
+    ],
+    "lessons": [
+        "EscolaLms\\Courses\\Models\\Lesson",
+        "EscolaLms\\Recommender\\Models\\Lesson"
+    ],
+    "measurements": [
+        "EscolaLms\\Reports\\Models\\Measurement"
+    ],
+    "meet_recording_screens": [
+        "EscolaLms\\Recommender\\Models\\MeetRecordingScreen"
+    ],
+    "meet_recordings": [
+        "EscolaLms\\Recommender\\Models\\MeetRecording"
+    ],
+    "model_fields_metadata": [
+        "EscolaLms\\ModelFields\\Models\\Metadata"
+    ],
+    "model_fields_values": [
+        "EscolaLms\\ModelFields\\Models\\Field"
+    ],
+    "notifications": [
+        "EscolaLms\\Notifications\\Models\\DatabaseNotification"
+    ],
+    "order_items": [
+        "EscolaLms\\Cart\\Models\\OrderItem",
+        "EscolaLms\\Vouchers\\Models\\OrderItem"
+    ],
+    "orders": [
+        "EscolaLms\\Cart\\Models\\Order",
+        "EscolaLms\\Vouchers\\Models\\Order"
+    ],
+    "pages": [
+        "EscolaLms\\Pages\\Models\\Page"
+    ],
+    "payments": [
+        "EscolaLms\\Payments\\Models\\Payment"
+    ],
+    "pencil_space_accounts": [
+        "EscolaLms\\PencilSpaces\\Models\\PencilSpaceAccount"
+    ],
+    "pre_users": [
+        "EscolaLms\\Auth\\Models\\PreUser"
+    ],
+    "products": [
+        "EscolaLms\\Cart\\Models\\Product",
+        "EscolaLms\\Vouchers\\Models\\Product"
+    ],
+    "products_productables": [
+        "EscolaLms\\Cart\\Models\\ProductProductable"
+    ],
+    "products_users": [
+        "EscolaLms\\Cart\\Models\\ProductUser"
+    ],
+    "question_answers": [
+        "EscolaLms\\Questionnaire\\Models\\QuestionAnswer"
+    ],
+    "questionnaire_model_types": [
+        "EscolaLms\\Questionnaire\\Models\\QuestionnaireModelType"
+    ],
+    "questionnaire_models": [
+        "EscolaLms\\Questionnaire\\Models\\QuestionnaireModel"
+    ],
+    "questionnaires": [
+        "EscolaLms\\Questionnaire\\Models\\Questionnaire"
+    ],
+    "questions": [
+        "EscolaLms\\Questionnaire\\Models\\Question"
+    ],
+    "reports": [
+        "EscolaLms\\Reports\\Models\\Report"
+    ],
+    "settings": [
+        "EscolaLms\\Settings\\Models\\Setting"
+    ],
+    "social_accounts": [
+        "EscolaLms\\Auth\\Models\\SocialAccount"
+    ],
+    "stationary_event_authors": [
+        "EscolaLms\\StationaryEvents\\Models\\StationaryEventAuthorPivot"
+    ],
+    "stationary_event_users": [
+        "EscolaLms\\StationaryEvents\\Models\\StationaryEventUserPivot"
+    ],
+    "stationary_events": [
+        "EscolaLms\\StationaryEvents\\Models\\StationaryEvent",
+        "App\\Models\\StationaryEvent"
+    ],
+    "tags": [
+        "EscolaLms\\Tags\\Models\\Tag"
+    ],
+    "task_notes": [
+        "EscolaLms\\Tasks\\Models\\TaskNote"
+    ],
+    "tasks": [
+        "EscolaLms\\Tasks\\Models\\Task"
+    ],
+    "templatables": [
+        "EscolaLms\\Templates\\Models\\Templatable"
+    ],
+    "template_sections": [
+        "EscolaLms\\Templates\\Models\\TemplateSection"
+    ],
+    "templates": [
+        "EscolaLms\\Templates\\Models\\Template"
+    ],
+    "term_analytics": [
+        "EscolaLms\\Recommender\\Models\\TermAnalytic"
+    ],
+    "topic_audios": [
+        "EscolaLms\\TopicTypes\\Models\\TopicContent\\Audio"
+    ],
+    "topic_cmi5_aus": [
+        "EscolaLms\\TopicTypes\\Models\\TopicContent\\Cmi5Au"
+    ],
+    "topic_gift_attempt_answers": [
+        "EscolaLms\\TopicTypeGift\\Models\\AttemptAnswer"
+    ],
+    "topic_gift_questions": [
+        "EscolaLms\\TopicTypeGift\\Models\\GiftQuestion"
+    ],
+    "topic_gift_quiz_attempts": [
+        "EscolaLms\\TopicTypeGift\\Models\\QuizAttempt"
+    ],
+    "topic_gift_quizzes": [
+        "EscolaLms\\TopicTypeGift\\Models\\GiftQuiz"
+    ],
+    "topic_h5ps": [
+        "EscolaLms\\TopicTypes\\Models\\TopicContent\\H5P"
+    ],
+    "topic_images": [
+        "EscolaLms\\TopicTypes\\Models\\TopicContent\\Image"
+    ],
+    "topic_oembeds": [
+        "EscolaLms\\TopicTypes\\Models\\TopicContent\\OEmbed"
+    ],
+    "topic_pdfs": [
+        "EscolaLms\\TopicTypes\\Models\\TopicContent\\PDF"
+    ],
+    "topic_project_solutions": [
+        "EscolaLms\\TopicTypeProject\\Models\\ProjectSolution"
+    ],
+    "topic_projects": [
+        "EscolaLms\\TopicTypeProject\\Models\\Project"
+    ],
+    "topic_resources": [
+        "EscolaLms\\Courses\\Models\\TopicResource"
+    ],
+    "topic_richtexts": [
+        "EscolaLms\\TopicTypes\\Models\\TopicContent\\RichText"
+    ],
+    "topic_scorm_scos": [
+        "EscolaLms\\TopicTypes\\Models\\TopicContent\\ScormSco"
+    ],
+    "topic_videos": [
+        "EscolaLms\\Video\\Models\\Video",
+        "EscolaLms\\TopicTypes\\Models\\TopicContent\\Video"
+    ],
+    "topics": [
+        "EscolaLms\\Courses\\Models\\Topic",
+        "EscolaLms\\Recommender\\Models\\Topic"
+    ],
+    "trax_xapi_statements": [
+        "EscolaLms\\Lrs\\Models\\Statement"
+    ],
+    "user_admins": [
+        "EscolaLms\\Permissions\\Models\\UserAdmin"
+    ],
+    "user_settings": [
+        "EscolaLms\\Auth\\Models\\UserSetting"
+    ],
+    "user_submissions": [
+        "EscolaLms\\AssignWithoutAccount\\Models\\UserSubmission"
+    ],
+    "user_topic_times": [
+        "EscolaLms\\Courses\\Models\\UserTopicTime"
+    ],
+    "users": [
+        "EscolaLms\\Auth\\Models\\User",
+        "EscolaLms\\Bookmarks\\Models\\User",
+        "EscolaLms\\BulkNotifications\\Models\\User",
+        "EscolaLms\\Cart\\Models\\User",
+        "EscolaLms\\Consultations\\Models\\User",
+        "EscolaLms\\Core\\Models\\User",
+        "EscolaLms\\Courses\\Models\\User",
+        "EscolaLms\\CsvUsers\\Models\\User",
+        "EscolaLms\\Dictionaries\\Models\\User",
+        "EscolaLms\\Notifications\\Models\\User",
+        "EscolaLms\\Payments\\Models\\User",
+        "EscolaLms\\PencilSpaces\\Models\\User",
+        "EscolaLms\\Tasks\\Models\\User",
+        "EscolaLms\\Vouchers\\Models\\User",
+        "EscolaLms\\Webinar\\Models\\User",
+        "App\\Models\\User"
+    ],
+    "webinar_user": [
+        "EscolaLms\\Webinar\\Models\\WebinarUserPivot"
+    ],
+    "webinars": [
+        "EscolaLms\\Webinar\\Models\\Webinar",
+        "App\\Models\\Webinar"
+    ]
+}

@@ -1,0 +1,4 @@
+[RLS, NO tenant tagging] carol started 1-minute attempt 2: end_at 2026-10-08T19:57:02.000000Z | is_ended: False
+[RLS, NO tenant tagging] worker output: ['2026-10-08 19:57:13 EscolaLms\\TopicTypeGift\\Jobs\\MarkAttemptAsEnded  RUNNING', '2026-10-08 19:57:13 EscolaLms\\TopicTypeGift\\Jobs\\MarkAttemptAsEnded  5.71ms DONE', '2026-10-08 19:57:13 EscolaLms\\TopicTypeGift\\Jobs\\MarkAttemptAsEnded  RUNNING']
+[RLS, NO tenant tagging] attempt 2 in DB (end_at, result_score): 
+[RLS, NO tenant tagging] API says is_ended: True result_score: 0

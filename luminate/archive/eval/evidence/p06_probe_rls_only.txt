@@ -1,0 +1,37 @@
+=== PROBES FROM TENANT D (scope set = rls-only); tenant C owns course 2, user 2, attempt 1
+  list courses (admin)                                       200  clean
+  list courses (public)                                      200  clean
+  read C course by id (admin)                                404  clean
+  read C course by id (learner API)                          404  clean
+  read C lesson by id                                        404  clean
+  read C topic by id                                         404  clean
+  list users                                                 200  clean
+  read C user by id                                          422  clean
+  user groups                                                200  clean
+  read C quiz by id                                          200  LEAK 200-on-foreign-id
+  list quiz attempts (all)                                   200  clean
+  quiz attempts filtered by C course                         200  clean
+  read C attempt by id                                       404  clean
+  stats of C course                                          422  clean
+  stats export of C course                                   422  clean
+  quiz results export                                        500  clean
+  reports metrics                                            200  clean
+  access list of C course                                    422  clean
+--- writes / validation (ids from another tenant)
+  D: access/add C's user to D's course (exists: rule)        422  clean
+  D: access list of D course afterwards                      200  clean
+  D: access/add C's course? update C course (PUT-like POST)  403  clean
+  D: delete C's course                                       404  clean
+  D: create user with C's email (unique:users,email)         400  LEAK carol@c.test
+      -> {"success":false,"message":"SQLSTATE[23505]: Unique violation: 7 ERROR:  duplicate key value violates unique constraint \"users_email_unique
+--- shared global state
+  D: reads role 'student' after C narrowed it                200  clean
+      student role assigned count seen by D: 1
+  C sets registration=disabled; D reads /api/config          200  clean
+  D reads /api/config                                        200  clean
+      registration seen by D: disabled
+--- auth: C's learner token used on D's host
+  C's student token -> D /api/profile/me                     401  clean
+      -> {"message":"Unauthenticated."}
+
+SUMMARY (rls-only): 1 of the first 17 read probes leaked tenant C data to D

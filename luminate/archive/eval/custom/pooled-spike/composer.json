@@ -1,0 +1,9 @@
+{
+  "name": "luminate/wellms-pooled-spike",
+  "description": "Eval spike: pooled (single DB, tenant_id + global scope) add-on for Wellms, no core patching.",
+  "type": "library",
+  "license": "proprietary",
+  "require": { "php": ">=8.1" },
+  "autoload": { "psr-4": { "Pooled\\Spike\\": "src/" } },
+  "extra": { "laravel": { "providers": [ "Pooled\\Spike\\PooledSpikeServiceProvider" ] } }
+}

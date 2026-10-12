@@ -1,0 +1,9 @@
+{
+  "name": "luminate/wellms-webhooks",
+  "description": "Eval: outbound signed webhooks for Wellms domain events (extension-point test).",
+  "type": "library",
+  "license": "proprietary",
+  "require": { "php": ">=8.1" },
+  "autoload": { "psr-4": { "Luminate\\Webhooks\\": "src/" } },
+  "extra": { "laravel": { "providers": [ "Luminate\\Webhooks\\LuminateWebhooksServiceProvider" ] } }
+}

@@ -1,0 +1,315 @@
+{
+ "DB:: facade (any)": {
+  "total": 95,
+  "by_pkg": {
+   "bulk-notifications": 2,
+   "dictionaries": 4,
+   "courses-import-export": 1,
+   "cmi5": 1,
+   "stationary-events": 1,
+   "topic-type-gift": 2,
+   "scorm": 1,
+   "topic-types": 2,
+   "reports": 10,
+   "categories": 2,
+   "settings": 2,
+   "headless-h5p": 1,
+   "questionnaire": 10,
+   "webinar": 6,
+   "core": 6,
+   "consultation-access": 3,
+   "recommender": 10,
+   "courses": 7,
+   "auth": 3,
+   "consultations": 10,
+   "app": 11
+  }
+ },
+ "DB::raw/select/statement/table": {
+  "total": 35,
+  "by_pkg": {
+   "dictionaries": 2,
+   "topic-types": 1,
+   "reports": 10,
+   "settings": 1,
+   "questionnaire": 6,
+   "webinar": 1,
+   "core": 1,
+   "recommender": 2,
+   "courses": 5,
+   "auth": 1,
+   "app": 5
+  }
+ },
+ "raw SQL fragments (whereRaw/selectRaw/orderByRaw/havingRaw/groupByRaw/joinRaw)": {
+  "total": 35,
+  "by_pkg": {
+   "stationary-events": 1,
+   "topic-type-gift": 1,
+   "reports": 12,
+   "headless-h5p": 2,
+   "questionnaire": 3,
+   "cart": 2,
+   "webinar": 3,
+   "recommender": 6,
+   "courses": 2,
+   "auth": 1,
+   "app": 2
+  }
+ },
+ "sub-selects/joins on query builder (join/leftJoin/joinSub/fromSub)": {
+  "total": 84,
+  "by_pkg": {
+   "templates-email": 1,
+   "stationary-events": 2,
+   "topic-type-gift": 1,
+   "reports": 39,
+   "headless-h5p": 7,
+   "questionnaire": 16,
+   "cart": 2,
+   "recommender": 4,
+   "courses": 10,
+   "consultations": 2
+  }
+ },
+ "validation exists:/unique: strings or Rule::exists/unique": {
+  "total": 152,
+  "by_pkg": {
+   "templates": 3,
+   "bulk-notifications": 1,
+   "dictionaries": 5,
+   "cmi5": 3,
+   "invoices": 1,
+   "tasks": 3,
+   "stationary-events": 2,
+   "topic-type-gift": 8,
+   "notifications": 2,
+   "topic-types": 3,
+   "csv-users": 2,
+   "reports": 5,
+   "topic-type-project": 1,
+   "course-access": 8,
+   "translations": 2,
+   "categories": 3,
+   "bookmarks_notes": 2,
+   "pages": 6,
+   "questionnaire": 28,
+   "cart": 18,
+   "webinar": 2,
+   "consultation-access": 2,
+   "vouchers": 10,
+   "courses": 4,
+   "auth": 20,
+   "consultations": 8
+  }
+ },
+ "Cache:: / cache() / remember": {
+  "total": 14,
+  "by_pkg": {
+   "model-fields": 7,
+   "settings": 2,
+   "headless-h5p": 2,
+   "recommender": 3
+  }
+ },
+ "Storage:: / disk(": {
+  "total": 218,
+  "by_pkg": {
+   "templates": 1,
+   "courses-import-export": 34,
+   "cmi5": 3,
+   "video": 7,
+   "stationary-events": 1,
+   "images": 10,
+   "files": 3,
+   "scorm": 19,
+   "topic-types": 41,
+   "csv-users": 1,
+   "topic-type-project": 2,
+   "jitsi": 2,
+   "categories": 1,
+   "settings": 1,
+   "headless-h5p": 55,
+   "cart": 1,
+   "webinar": 4,
+   "core": 1,
+   "recommender": 3,
+   "courses": 22,
+   "auth": 1,
+   "consultations": 4,
+   "app": 1
+  }
+ },
+ "dispatch/queue jobs": {
+  "total": 30,
+  "by_pkg": {
+   "assign-without-account": 4,
+   "bulk-notifications": 2,
+   "courses-import-export": 4,
+   "video": 7,
+   "templates-email": 1,
+   "topic-type-gift": 3,
+   "cart": 1,
+   "consultation-access": 1,
+   "recommender": 6,
+   "courses": 1
+  }
+ },
+ "withoutGlobalScope(s)": {
+  "total": 0,
+  "by_pkg": {}
+ },
+ "addGlobalScope / GlobalScope class": {
+  "total": 0,
+  "by_pkg": {}
+ },
+ "SoftDeletes (is a global scope)": {
+  "total": 4,
+  "by_pkg": {
+   "auth": 4
+  }
+ },
+ "Eloquent model class": {
+  "total": 119,
+  "by_pkg": {
+   "model-fields": 3,
+   "templates": 3,
+   "assign-without-account": 1,
+   "bulk-notifications": 5,
+   "dictionaries": 5,
+   "cmi5": 2,
+   "tasks": 3,
+   "stationary-events": 3,
+   "templates-pdf": 1,
+   "images": 1,
+   "topic-type-gift": 4,
+   "notifications": 1,
+   "topic-types": 10,
+   "csv-users": 1,
+   "reports": 2,
+   "tags": 1,
+   "permissions": 1,
+   "topic-type-project": 2,
+   "course-access": 1,
+   "categories": 1,
+   "pencil-spaces": 2,
+   "settings": 2,
+   "bookmarks_notes": 2,
+   "pages": 1,
+   "headless-h5p": 7,
+   "payments": 2,
+   "questionnaire": 5,
+   "cart": 6,
+   "webinar": 3,
+   "core": 1,
+   "consultation-access": 2,
+   "recommender": 4,
+   "vouchers": 5,
+   "courses": 14,
+   "auth": 6,
+   "consultations": 5,
+   "app": 1
+  }
+ },
+ "Artisan/Facade query cache (rennokki QueryCacheable)": {
+  "total": 28,
+  "by_pkg": {
+   "reports": 7,
+   "headless-h5p": 6,
+   "core": 4,
+   "courses": 11
+  }
+ },
+ "scout/fulltext (to_tsvector, Searchable, ilike)": {
+  "total": 34,
+  "by_pkg": {
+   "dictionaries": 6,
+   "stationary-events": 3,
+   "images": 1,
+   "scorm": 1,
+   "tags": 1,
+   "translations": 1,
+   "categories": 1,
+   "settings": 1,
+   "webinar": 2,
+   "core": 2,
+   "courses": 8,
+   "auth": 3,
+   "consultations": 4
+  }
+ },
+ "Export (maatwebsite) / Excel::": {
+  "total": 129,
+  "by_pkg": {
+   "dictionaries": 7,
+   "topic-type-gift": 32,
+   "csv-users": 26,
+   "reports": 27,
+   "payments": 10,
+   "questionnaire": 13,
+   "cart": 10,
+   "auth": 4
+  }
+ },
+ "->getConnection()/->getPdo()/DB::connection": {
+  "total": 42,
+  "by_pkg": {
+   "dictionaries": 4,
+   "stationary-events": 2,
+   "scorm": 2,
+   "settings": 2,
+   "questionnaire": 2,
+   "webinar": 4,
+   "core": 6,
+   "recommender": 8,
+   "courses": 3,
+   "auth": 4,
+   "consultations": 2,
+   "app": 3
+  }
+ },
+ "models_total": 147,
+ "models_by_pkg": {
+  "model-fields": 3,
+  "templates": 3,
+  "assign-without-account": 1,
+  "bulk-notifications": 5,
+  "dictionaries": 6,
+  "courses-import-export": 1,
+  "cmi5": 2,
+  "video": 1,
+  "tasks": 3,
+  "stationary-events": 3,
+  "templates-pdf": 1,
+  "images": 1,
+  "topic-type-gift": 4,
+  "notifications": 2,
+  "topic-types": 11,
+  "csv-users": 2,
+  "reports": 2,
+  "tags": 1,
+  "permissions": 1,
+  "topic-type-project": 2,
+  "course-access": 2,
+  "translations": 1,
+  "lrs": 1,
+  "categories": 1,
+  "pencil-spaces": 2,
+  "settings": 2,
+  "bookmarks_notes": 2,
+  "pages": 1,
+  "headless-h5p": 7,
+  "payments": 2,
+  "questionnaire": 5,
+  "cart": 9,
+  "webinar": 3,
+  "core": 1,
+  "consultation-access": 3,
+  "recommender": 7,
+  "vouchers": 11,
+  "courses": 15,
+  "auth": 6,
+  "consultations": 5,
+  "app": 6
+ }
+}

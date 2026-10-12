@@ -1,0 +1,12 @@
+  +1s  postgres role + database
+  +1s  minio bucket
+  +3s  domain:add + env (hot, no restart)
+  +10s  migrate 151 tables
+  +13s  app key + passport keys + client
+  +24s  seed permissions + initial admin
+pooled|15 MB
+tenant_a|15 MB
+tenant_b|15 MB
+tenant_f|15 MB
+MULTI_DOMAINS=tenant-a.localhost,tenant-b.localhost
+200

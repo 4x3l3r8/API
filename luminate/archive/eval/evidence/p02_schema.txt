@@ -1,0 +1,41 @@
+base tables: 151
+tables with at least one FK: 77 | FK constraints: 129
+
+Classification of 151 tables
+  reachable by FK from users/courses/groups/lessons/topics (tenant-owned by structure): 44
+  of which have no FK path but a user_id/author_id/created_by column: 9
+  Laravel framework tables: 3 ['failed_jobs', 'jobs', 'migrations']
+  Passport oauth_*: 5 ['oauth_access_tokens', 'oauth_auth_codes', 'oauth_clients', 'oauth_personal_access_clients', 'oauth_refresh_tokens']
+  Spatie roles/permissions: 5 ['model_has_permissions', 'model_has_roles', 'permissions', 'role_has_permissions', 'roles']
+  TRAX (xAPI LRS) trax_*: 24
+  H5P tables: 8 ['h5p_user_progress', 'hh5p_contents', 'hh5p_contents_libraries', 'hh5p_libraries', 'hh5p_libraries_dependencies', 'hh5p_libraries_hub_cache', 'hh5p_libraries_languages', 'hh5p_temp_files']
+  remaining (neither FK-reachable nor framework/passport/spatie/trax):  70
+    ['aggregated_frames', 'bulk_notification_sections', 'bulk_notifications', 'cart_items', 'carts', 'categories', 'category_stationary_event', 'cmi5_aus', 'cmi5s', 'config', 'coupon_user', 'coupons', 'coupons_categories', 'coupons_products', 'dictionaries', 'dictionary_word_category', 'dictionary_words', 'h5p_user_progress', 'hh5p_contents', 'hh5p_contents_libraries', 'hh5p_libraries', 'hh5p_libraries_dependencies', 'hh5p_libraries_hub_cache', 'hh5p_libraries_languages', 'hh5p_temp_files', 'image_caches', 'language_lines', 'measurements', 'meet_recording_screens', 'meet_recordings', 'model_fields_metadata', 'model_fields_values', 'notifications', 'pages', 'payments', 'pre_users', 'products', 'products_categories', 'products_productables', 'products_users', 'question_answers', 'questionnaire_model_types', 'questionnaire_models', 'questionnaires', 'questions', 'related_product', 'reports', 'settings', 'stationary_events', 'tags', 'templatables', 'template_sections', 'templates', 'term_analytics', 'topic_audios', 'topic_cmi5_aus', 'topic_gift_questions', 'topic_gift_quizzes', 'topic_h5ps', 'topic_images', 'topic_oembeds', 'topic_pdfs', 'topic_projects', 'topic_resources', 'topic_richtexts', 'topic_scorm_scos', 'topic_videos', 'user_submissions', 'user_topic_times', 'webinars']
+
+== UNIQUE constraints/indexes that would collide across tenants in one DB
+unique (non-primary) indexes: 32 across 27 tables
+unique indexes on natural keys (non-uuid): 24
+   coupons(code)
+   course_author(author_id,course_id)
+   course_user(user_id,course_id)
+   hh5p_contents(nonce)
+   hh5p_contents_libraries(content_id,library_id,dependency_type)
+   hh5p_libraries_dependencies(library_id,required_library_id)
+   hh5p_libraries_languages(library_id,language_code)
+   meet_recordings(model_type,model_id,term,start_at)
+   questionnaire_model_types(model_class)
+   templatables(channel,event,templatable_type,templatable_id)
+   templatables(template_id,templatable_type,templatable_id)
+   trax_owners(name)
+   trax_users(username)
+   trax_users(email)
+   trax_xapi_activities(iri,owner_id)
+   trax_xapi_activity_profiles(profile_id,activity_id,owner_id)
+   trax_xapi_activity_types(iri,owner_id)
+   trax_xapi_agent_profiles(profile_id,vid,owner_id)
+   trax_xapi_agents(vid,owner_id)
+   trax_xapi_statement_categories(iri,owner_id)
+   trax_xapi_states(state_id,activity_id,vid,registration,owner_id)
+   trax_xapi_verbs(iri,owner_id)
+   users(email)
+   webinar_user(user_id,webinar_id)

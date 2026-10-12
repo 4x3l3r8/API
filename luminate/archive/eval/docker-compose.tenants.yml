@@ -1,0 +1,25 @@
+# Adds two tenants to the api service (laravel-multidomain). Env-var convention: <DOMAIN_UPPER_UNDERSCORED>_<LARAVEL_KEY>
+services:
+  api:
+    environment:
+      - MULTI_DOMAINS=tenant-a.localhost,tenant-b.localhost
+      # --- tenant A
+      - TENANT_A_LOCALHOST_APP_NAME="Tenant Alpha"
+      - TENANT_A_LOCALHOST_APP_URL=http://tenant-a.localhost
+      - TENANT_A_LOCALHOST_DB_DATABASE=tenant_a
+      - TENANT_A_LOCALHOST_DB_USERNAME=tenant_a
+      - TENANT_A_LOCALHOST_DB_PASSWORD=tenant_a_pw
+      - TENANT_A_LOCALHOST_AWS_BUCKET=tenant-a
+      - TENANT_A_LOCALHOST_AWS_URL=http://storage.localhost/tenant-a
+      - TENANT_A_LOCALHOST_INITIAL_USER_EMAIL=admin@tenant-a.test
+      - TENANT_A_LOCALHOST_INITIAL_USER_PASSWORD=alpha-secret
+      # --- tenant B
+      - TENANT_B_LOCALHOST_APP_NAME="Tenant Beta"
+      - TENANT_B_LOCALHOST_APP_URL=http://tenant-b.localhost
+      - TENANT_B_LOCALHOST_DB_DATABASE=tenant_b
+      - TENANT_B_LOCALHOST_DB_USERNAME=tenant_b
+      - TENANT_B_LOCALHOST_DB_PASSWORD=tenant_b_pw
+      - TENANT_B_LOCALHOST_AWS_BUCKET=tenant-b
+      - TENANT_B_LOCALHOST_AWS_URL=http://storage.localhost/tenant-b
+      - TENANT_B_LOCALHOST_INITIAL_USER_EMAIL=admin@tenant-b.test
+      - TENANT_B_LOCALHOST_INITIAL_USER_PASSWORD=beta-secret

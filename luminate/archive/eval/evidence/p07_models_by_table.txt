@@ -1,0 +1,14 @@
+concrete Eloquent model classes: 142 over 105 tables
+tables queried by more than one model class: 16
+  users                      16 classes: Auth\Models\User, Bookmarks\Models\User, BulkNotifications\Models\User, Cart\Models\User, ...
+  courses                     5 classes: CourseAccess\Models\Course, CoursesImportExport\Models\Course, Courses\Models\Course, Recommender\Models\Course, ...
+  categories                  4 classes: Cart\Models\Category, Categories\Models\Category, Dictionaries\Models\Category, Vouchers\Models\Category
+  consultations               3 classes: ConsultationAccess\Models\Consultation, Consultations\Models\Consultation, App\Models\Consultation
+  groups                      3 classes: Auth\Models\Group, Courses\Models\Group, CsvUsers\Models\Group
+  cart_items                  2 classes: Cart\Models\CartItem, Vouchers\Models\CartItem
+  carts                       2 classes: Cart\Models\Cart, Vouchers\Models\Cart
+  dictionaries                2 classes: Dictionaries\Models\Dictionary, App\Models\Dictionary
+  lessons                     2 classes: Courses\Models\Lesson, Recommender\Models\Lesson
+  order_items                 2 classes: Cart\Models\OrderItem, Vouchers\Models\OrderItem
+  orders                      2 classes: Cart\Models\Order, Vouchers\Models\Order
+  products                    2 classes: Cart\Models\Product, Vouchers\Models\Product

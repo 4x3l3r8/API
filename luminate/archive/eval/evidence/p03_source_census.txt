@@ -1,0 +1,74 @@
+== Eloquent-ish model files under */Models/ per package
+total files in Models/ dirs: 147 in 41 packages
+
+-- DB:: facade (any): 95 occurrences in 21 packages
+   top: app=11, reports=10, questionnaire=10, recommender=10, consultations=10, courses=7, webinar=6, core=6
+-- DB::raw/select/statement/table: 35 occurrences in 11 packages
+   top: reports=10, questionnaire=6, courses=5, app=5, dictionaries=2, recommender=2, topic-types=1, settings=1
+-- raw SQL fragments (whereRaw/selectRaw/orderByRaw/havingRaw/groupByRaw/joinRaw): 35 occurrences in 11 packages
+   top: reports=12, recommender=6, questionnaire=3, webinar=3, headless-h5p=2, cart=2, courses=2, app=2
+-- sub-selects/joins on query builder (join/leftJoin/joinSub/fromSub): 84 occurrences in 10 packages
+   top: reports=39, questionnaire=16, courses=10, headless-h5p=7, recommender=4, stationary-events=2, cart=2, consultations=2
+-- validation exists:/unique: strings or Rule::exists/unique: 152 occurrences in 26 packages
+   top: questionnaire=28, auth=20, cart=18, vouchers=10, topic-type-gift=8, course-access=8, consultations=8, pages=6
+-- Cache:: / cache() / remember: 14 occurrences in 4 packages
+   top: model-fields=7, recommender=3, settings=2, headless-h5p=2
+-- Storage:: / disk(: 218 occurrences in 23 packages
+   top: headless-h5p=55, topic-types=41, courses-import-export=34, courses=22, scorm=19, images=10, video=7, webinar=4
+-- dispatch/queue jobs: 30 occurrences in 10 packages
+   top: video=7, recommender=6, assign-without-account=4, courses-import-export=4, topic-type-gift=3, bulk-notifications=2, templates-email=1, cart=1
+-- withoutGlobalScope(s): 0 occurrences in 0 packages
+   top: 
+-- addGlobalScope / GlobalScope class: 0 occurrences in 0 packages
+   top: 
+-- SoftDeletes (is a global scope): 4 occurrences in 1 packages
+   top: auth=4
+-- Eloquent model class: 119 occurrences in 37 packages
+   top: courses=14, topic-types=10, headless-h5p=7, cart=6, auth=6, bulk-notifications=5, dictionaries=5, questionnaire=5
+-- Artisan/Facade query cache (rennokki QueryCacheable): 28 occurrences in 4 packages
+   top: courses=11, reports=7, headless-h5p=6, core=4
+-- scout/fulltext (to_tsvector, Searchable, ilike): 34 occurrences in 13 packages
+   top: courses=8, dictionaries=6, consultations=4, stationary-events=3, auth=3, webinar=2, core=2, images=1
+-- Export (maatwebsite) / Excel::: 129 occurrences in 8 packages
+   top: topic-type-gift=32, reports=27, csv-users=26, questionnaire=13, payments=10, cart=10, dictionaries=7, auth=4
+-- ->getConnection()/->getPdo()/DB::connection: 42 occurrences in 12 packages
+   top: recommender=8, core=6, dictionaries=4, webinar=4, auth=4, courses=3, app=3, stationary-events=2
+
+== risky files (DB:: raw/table/select, whereRaw/selectRaw, joinSub) examples
+ * DB::raw/select/statement/table
+     reports -> vendor/escolalms/reports/src/Metrics/AbstractCoursesMoneySpentMetric.php (4); vendor/escolalms/reports/src/Metrics/CoursesTopSellingMetric.php (4); vendor/escolalms/reports/src/Metrics/TutorsPopularityMetric.php (1)
+     questionnaire -> vendor/escolalms/questionnaire/src/Services/QuestionnaireModelService.php (6)
+     courses -> vendor/escolalms/courses/src/Models/Course.php (2); vendor/escolalms/courses/src/Services/ProgressService.php (3)
+     app -> app/Rules/ExistsWhenIsset.php (1); app/Repositories/SearchableEventRepository.php (2); app/Library/EscolaHelpers.php (2)
+     dictionaries -> vendor/escolalms/dictionaries/src/Repositories/Criteria/StartILikeCriterion.php (1); vendor/escolalms/dictionaries/src/Repositories/Criteria/ILikeCriterion.php (1)
+     recommender -> vendor/escolalms/recommender/src/Services/TermAnalyticService.php (2)
+     topic-types -> vendor/escolalms/topic-types/src/EscolaLmsTopicTypesServiceProvider.php (1)
+ * raw SQL fragments (whereRaw/selectRaw/orderByRaw/havingRaw/groupByRaw/joinRaw)
+     reports -> vendor/escolalms/reports/src/Metrics/CoursesBestRatedMetric.php (1); vendor/escolalms/reports/src/Metrics/AbstractCoursesSecondsSpentMetric.php (1); vendor/escolalms/reports/src/Metrics/AbstractCoursesMoneySpentMetric.php (1)
+     recommender -> vendor/escolalms/recommender/src/Services/TermAnalyticService.php (5); vendor/escolalms/recommender/src/Services/RecommenderService.php (1)
+     questionnaire -> vendor/escolalms/questionnaire/src/Repository/QuestionAnswerRepository.php (3)
+     webinar -> vendor/escolalms/webinar/src/Repositories/Criteria/WebinarUserCriterion.php (1); vendor/escolalms/webinar/src/Repositories/Criteria/WebinarIncomingCriterion.php (2)
+     headless-h5p -> vendor/escolalms/headless-h5p/src/Traits/QueryExtendable.php (1); vendor/escolalms/headless-h5p/src/Repositories/H5PContentRepository.php (1)
+     cart -> vendor/escolalms/cart/src/Services/ProductService.php (1); vendor/escolalms/cart/src/Services/ShopService.php (1)
+     courses -> vendor/escolalms/courses/src/Services/ProgressService.php (2)
+ * sub-selects/joins on query builder (join/leftJoin/joinSub/fromSub)
+     reports -> vendor/escolalms/reports/src/Metrics/CoursesBestRatedMetric.php (4); vendor/escolalms/reports/src/Metrics/AbstractCoursesSecondsSpentMetric.php (3); vendor/escolalms/reports/src/Metrics/AbstractCoursesMoneySpentMetric.php (4)
+     questionnaire -> vendor/escolalms/questionnaire/src/Services/QuestionnaireModelService.php (6); vendor/escolalms/questionnaire/src/Repository/QuestionAnswerRepository.php (4); vendor/escolalms/questionnaire/src/Repository/QuestionnaireModelRepository.php (1)
+     courses -> vendor/escolalms/courses/src/Services/ProgressService.php (8); vendor/escolalms/courses/src/Repositories/CourseRepository.php (2)
+     headless-h5p -> vendor/escolalms/headless-h5p/src/Traits/QueryExtendable.php (1); vendor/escolalms/headless-h5p/src/Repositories/H5PEditorAjaxRepository.php (3); vendor/escolalms/headless-h5p/src/Repositories/H5PRepository.php (3)
+     recommender -> vendor/escolalms/recommender/src/Services/TermAnalyticService.php (1); vendor/escolalms/recommender/src/Repositories/TermAnalyticsRepository.php (2); vendor/escolalms/recommender/src/Repositories/Criteria/CategoriesCriterion.php (1)
+     stationary-events -> vendor/escolalms/stationary-events/src/Repositories/StationaryEventRepository.php (2)
+     cart -> vendor/escolalms/cart/src/Services/ProductService.php (2)
+ * Cache:: / cache() / remember
+     model-fields -> vendor/escolalms/model-fields/src/Services/ModelFieldsService.php (7)
+     recommender -> vendor/escolalms/recommender/src/Listeners/UpdateRecommenderModels.php (3)
+     settings -> vendor/escolalms/settings/src/Services/AdministrableConfigService.php (2)
+     headless-h5p -> vendor/escolalms/headless-h5p/src/Repositories/H5PRepository.php (2)
+ * Export (maatwebsite) / Excel::
+     topic-type-gift -> vendor/escolalms/topic-type-gift/src/Import/QuestionImport.php (5); vendor/escolalms/topic-type-gift/src/Export/QuestionExport.php (7); vendor/escolalms/topic-type-gift/src/Export/QuizResultsExport.php (2)
+     reports -> vendor/escolalms/reports/src/Exports/Stats/Topic/QuizSummaryForTopicTypeGIFTExport.php (8); vendor/escolalms/reports/src/Exports/Stats/Course/FinishedTopicsExport.php (2); vendor/escolalms/reports/src/Exports/Stats/Course/Sheets/FinishedTopicsSheet.php (7)
+     csv-users -> vendor/escolalms/csv-users/src/Import/UserGroupImport.php (2); vendor/escolalms/csv-users/src/Import/AbstractUserImport.php (1); vendor/escolalms/csv-users/src/Import/UsersImport.php (3)
+     questionnaire -> vendor/escolalms/questionnaire/src/Exports/QuestionnaireExport.php (2); vendor/escolalms/questionnaire/src/Exports/QuestionnaireExportSheet.php (9); vendor/escolalms/questionnaire/src/Http/Controllers/QuestionnaireAdminApiController.php (2)
+     payments -> vendor/escolalms/payments/src/Exports/PaymentsExport.php (4); vendor/escolalms/payments/src/Http/Controllers/Admin/PaymentsController.php (2); vendor/escolalms/payments/src/Enums/ExportFormatEnum.php (4)
+     cart -> vendor/escolalms/cart/src/Exports/OrdersExport.php (4); vendor/escolalms/cart/src/Http/Controllers/Admin/OrderAdminApiController.php (2); vendor/escolalms/cart/src/Enums/ExportFormatEnum.php (4)
+     dictionaries -> vendor/escolalms/dictionaries/src/EscolaLmsDictionariesServiceProvider.php (1); vendor/escolalms/dictionaries/src/Http/Controllers/DictionaryWordAdminApiController.php (2); vendor/escolalms/dictionaries/src/Imports/DictionaryWordsImport.php (4)
