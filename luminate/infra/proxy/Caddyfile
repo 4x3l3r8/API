@@ -1,5 +1,15 @@
 {
 	auto_https off
+
+	# Caddy's access and error logs include full request headers. Never write credentials to logs.
+	log {
+		format filter {
+			wrap console
+			request>headers>Authorization delete
+			request>headers>X-Tenant-Context delete
+			request>headers>Cookie delete
+		}
+	}
 }
 
 # API only. The Luminate proxy is the sole caller (server-to-server), so no CORS headers.
