@@ -39,6 +39,17 @@ return [
     // Local registry replica for out-of-request work (contract §A.2). Interim: a static snapshot file.
     'replica_path' => env('LUMINATE_TENANCY_REPLICA', '/etc/luminate/tenants.json'),
 
+    // Rows that Wellms MIGRATIONS insert with no tenant (so no tenant can see them); provisioning creates them per tenant.
+    // Observed on Wellms 1.0.54. `_key` = columns that identify a row. Any other table that ends up with NULL-tenant rows
+    // after an upgrade is flagged by the isolation suite (see tests/sql/rls_checks.py) and must be added here or handled.
+    'reference_rows' => [
+        'questionnaire_model_types' => [
+            ['_key' => ['model_class'], 'title' => 'course', 'model_class' => 'EscolaLms\Courses\Models\Course'],
+            ['_key' => ['model_class'], 'title' => 'webinar', 'model_class' => 'EscolaLms\Webinar\Models\Webinar'],
+            ['_key' => ['model_class'], 'title' => 'consultations', 'model_class' => 'EscolaLms\Consultations\Models\Consultation'],
+        ],
+    ],
+
     // Tables that are NOT tenant-owned: table => reason. Mirrored into luminate_tenancy_exempt by the install migration.
     'exempt_tables' => [
         'migrations' => 'Laravel migration ledger',

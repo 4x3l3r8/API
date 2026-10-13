@@ -12,6 +12,7 @@ use Luminate\Tenancy\Console\StatusCommand;
 use Luminate\Tenancy\Context\ContextTokenVerifier;
 use Luminate\Tenancy\Context\CurrentTenant;
 use Luminate\Tenancy\Context\PlacementResolver;
+use Luminate\Tenancy\Context\TenantRuntime;
 use Luminate\Tenancy\Database\TenantPostgresConnection;
 use Luminate\Tenancy\Http\Middleware\VerifyTenantContext;
 use Luminate\Tenancy\Replica\TenantReplica;
@@ -23,6 +24,11 @@ final class TenancyServiceProvider extends ServiceProvider
         $this->mergeConfigFrom(__DIR__ . '/../config/luminate-tenancy.php', 'luminate-tenancy');
 
         $this->app->singleton(CurrentTenant::class);
+        $this->app->singleton(TenantRuntime::class);
+
+        // No tenant => an isolated cache namespace no tenant uses. Set in register() so it is in place before any provider's
+        // boot() reads the cache (e.g. escolalms/settings loading DB-backed config at boot, which runs before the middleware).
+        $this->app['config']->set('cache.prefix', TenantRuntime::UNTENANTED);
 
         $this->app->singleton(ContextTokenVerifier::class, function ($app) {
             $cfg = $app['config']['luminate-tenancy'];

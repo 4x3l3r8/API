@@ -9,8 +9,8 @@ use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Log;
 use Luminate\Tenancy\Context\ContextRejected;
 use Luminate\Tenancy\Context\ContextTokenVerifier;
-use Luminate\Tenancy\Context\CurrentTenant;
 use Luminate\Tenancy\Context\PlacementResolver;
+use Luminate\Tenancy\Context\TenantRuntime;
 use Symfony\Component\HttpFoundation\Response;
 
 /**
@@ -22,13 +22,13 @@ final class VerifyTenantContext
     public function __construct(
         private readonly ContextTokenVerifier $verifier,
         private readonly PlacementResolver $placements,
-        private readonly CurrentTenant $current,
+        private readonly TenantRuntime $runtime,
     ) {
     }
 
     public function handle(Request $request, Closure $next): Response
     {
-        $this->current->clear();
+        $this->runtime->deactivate();
 
         if ($this->isExempt($request)) {
             return $next($request);
@@ -52,7 +52,7 @@ final class VerifyTenantContext
             return response()->json(['message' => $e->getMessage(), 'code' => $e->code()], $e->httpStatus);
         }
 
-        $this->current->set($resolved);
+        $this->runtime->activate($resolved);
         Log::withContext(['tid' => $resolved->id()]);
 
         return $next($request);
@@ -60,7 +60,7 @@ final class VerifyTenantContext
 
     public function terminate(Request $request, Response $response): void
     {
-        $this->current->clear();
+        $this->runtime->deactivate();
     }
 
     private function isExempt(Request $request): bool

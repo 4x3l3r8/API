@@ -7,8 +7,8 @@ namespace Luminate\Tenancy\Console;
 use Illuminate\Console\Command;
 use Illuminate\Support\Facades\Artisan;
 use Illuminate\Support\Facades\DB;
-use Luminate\Tenancy\Context\CurrentTenant;
 use Luminate\Tenancy\Context\ContextRejected;
+use Luminate\Tenancy\Context\TenantRuntime;
 use Luminate\Tenancy\Replica\TenantReplica;
 
 /**
@@ -27,7 +27,7 @@ final class ProvisionTenantCommand extends Command
         {--admin-password= : override the admin password for this tenant}';
     protected $description = 'Seed roles, permissions, the first admin and the Passport personal client for a tenant.';
 
-    public function handle(TenantReplica $replica, CurrentTenant $current): int
+    public function handle(TenantReplica $replica, TenantRuntime $runtime): int
     {
         $this->assertRlsBound();
 
@@ -45,13 +45,14 @@ final class ProvisionTenantCommand extends Command
                 continue;
             }
             try {
-                $current->set($replica->resolve($tid, ['provisioning', 'active']));
+                // long-lived process switching tenants: also drop in-memory permission state between tenants
+                $runtime->activate($replica->resolve($tid, ['provisioning', 'active']), longLivedProcess: true);
                 $this->provision($tid);
             } catch (ContextRejected $e) {
                 $this->error("{$tid}: refused ({$e->code()})");
                 $failed++;
             } finally {
-                $current->clear();
+                $runtime->deactivate(longLivedProcess: true);
             }
         }
 
@@ -73,19 +74,39 @@ final class ProvisionTenantCommand extends Command
             DB::table('users')->where('id', $adminId)->where('tenant_id', $tid)->update(['password' => password_hash($password, PASSWORD_BCRYPT)]);
         }
 
-        // explicit tenant filter: never rely on RLS alone for an idempotency check
-        $clients = DB::table('oauth_personal_access_clients')->where('tenant_id', $tid)->count();
-        if ($clients === 0) {
-            Artisan::call('passport:client', ['--personal' => true, '--name' => "Wellms Personal Access Client ({$tid})", '--no-interaction' => true]);
+        // `escolalms/core`'s install_passport migration runs `passport:install` once, tenant-less; each tenant needs its own
+        // two clients. Explicit tenant filter: never rely on RLS alone for an idempotency check.
+        $app = (string) config('app.name');
+        $personal = "{$app} Personal Access Client";
+        $password = "{$app} Password Grant Client";
+        if (DB::table('oauth_clients')->where('tenant_id', $tid)->where('name', $personal)->count() === 0) {
+            Artisan::call('passport:client', ['--personal' => true, '--name' => $personal, '--no-interaction' => true]);
+        }
+        if (DB::table('oauth_clients')->where('tenant_id', $tid)->where('name', $password)->count() === 0) {
+            Artisan::call('passport:client', ['--password' => true, '--name' => $password, '--provider' => 'users', '--no-interaction' => true]);
+        }
+
+        // Reference rows that Wellms migrations insert without a tenant (so no tenant could see them).
+        foreach ((array) config('luminate-tenancy.reference_rows', []) as $table => $rows) {
+            foreach ($rows as $row) {
+                $exists = DB::table($table)->where('tenant_id', $tid);
+                foreach ($row['_key'] as $col) {
+                    $exists->where($col, $row[$col]);
+                }
+                if (!$exists->exists()) {
+                    DB::table($table)->insert(array_merge(array_diff_key($row, ['_key' => 1]), ['created_at' => now(), 'updated_at' => now()]));
+                }
+            }
         }
 
         $this->info(sprintf(
-            '%s ready: %d users, %d roles, %d permissions, %d personal clients',
+            '%s ready: %d users, %d roles, %d permissions, %d oauth clients, %d questionnaire types',
             $tid,
             DB::table('users')->where('tenant_id', $tid)->count(),
             DB::table('roles')->where('tenant_id', $tid)->count(),
             DB::table('permissions')->where('tenant_id', $tid)->count(),
-            DB::table('oauth_personal_access_clients')->where('tenant_id', $tid)->count(),
+            DB::table('oauth_clients')->where('tenant_id', $tid)->count(),
+            DB::table('questionnaire_model_types')->where('tenant_id', $tid)->count(),
         ));
     }
 
