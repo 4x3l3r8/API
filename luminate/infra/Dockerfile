@@ -13,7 +13,7 @@ RUN cp docker/conf/supervisor/supervisord.conf /etc/supervisord.conf \
  && chmod +x init.sh
 # Add-on packages are registered inside the image only, so the repo's composer.json/composer.lock stay
 # untouched (no core patch). A partial `update` keeps every other package at its locked version.
-RUN composer config repositories.luminate-tenancy '{"type":"path","url":"luminate/packages/luminate-tenancy","options":{"symlink":false}}' \
+RUN composer config repositories.luminate-tenancy '{"type":"path","url":"luminate/addons/luminate-tenancy","options":{"symlink":false}}' \
  && composer require luminate/tenancy:@dev --no-update --no-interaction \
  && composer update luminate/tenancy --no-scripts --no-dev --prefer-dist --no-interaction --no-audit
 CMD ["/var/www/html/init.sh"]

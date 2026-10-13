@@ -20,6 +20,6 @@ docs
 # eval archive and infra secrets never go into the image
 luminate/archive
 luminate/infra/.env
-luminate/packages/*/vendor
-luminate/packages/*/composer.lock
-luminate/packages/*/.phpunit.result.cache
+luminate/addons/*/vendor
+luminate/addons/*/composer.lock
+luminate/addons/*/.phpunit.result.cache
