@@ -58,10 +58,9 @@ final class VerifyTenantContext
         return $next($request);
     }
 
-    public function terminate(Request $request, Response $response): void
-    {
-        $this->runtime->deactivate();
-    }
+    // No terminate(): the tenant must stay active until the process ends so that work run after the response
+    // (dispatchAfterResponse, terminating callbacks) still executes as the right tenant. State cannot leak between requests:
+    // PHP-FPM discards it, and handle() resets to "no tenant" first thing on every request (Octane/Swoole is unsupported).
 
     private function isExempt(Request $request): bool
     {

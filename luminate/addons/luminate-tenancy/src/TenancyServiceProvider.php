@@ -15,7 +15,11 @@ use Luminate\Tenancy\Context\PlacementResolver;
 use Luminate\Tenancy\Context\TenantRuntime;
 use Luminate\Tenancy\Database\TenantPostgresConnection;
 use Luminate\Tenancy\Http\Middleware\VerifyTenantContext;
+use Luminate\Tenancy\Queue\QueueTagger;
+use Luminate\Tenancy\Queue\QueueTenantGate;
+use Luminate\Tenancy\Queue\TenantQueueGuard;
 use Luminate\Tenancy\Replica\TenantReplica;
+use Luminate\Tenancy\Testing\ProbeJobCommand;
 
 final class TenancyServiceProvider extends ServiceProvider
 {
@@ -30,14 +34,15 @@ final class TenancyServiceProvider extends ServiceProvider
         // boot() reads the cache (e.g. escolalms/settings loading DB-backed config at boot, which runs before the middleware).
         $this->app['config']->set('cache.prefix', TenantRuntime::UNTENANTED);
 
+        // Wellms ships `queue.failed` without a driver, so Laravel falls back to the legacy provider that never writes the
+        // `uuid` column, while the failed_jobs table declares it NOT NULL: stock Wellms silently loses EVERY failed job.
+        // Dead-lettering refused jobs depends on this working, so select the uuid-aware provider.
+        $this->app['config']->set('queue.failed.driver', 'database-uuids');
+
         $this->app->singleton(ContextTokenVerifier::class, function ($app) {
             $cfg = $app['config']['luminate-tenancy'];
-            $keys = array_values(array_filter(
-                [$cfg['keys']['current'] ?? null, $cfg['keys']['previous'] ?? null],
-                static fn ($k) => is_string($k) && $k !== ''
-            ));
 
-            return new ContextTokenVerifier($keys, (int) $cfg['max_lifetime'], (int) $cfg['leeway']);
+            return new ContextTokenVerifier($this->signingKeys($cfg), (int) $cfg['max_lifetime'], (int) $cfg['leeway']);
         });
 
         $this->app->singleton(PlacementResolver::class, function ($app) {
@@ -50,6 +55,10 @@ final class TenancyServiceProvider extends ServiceProvider
             (string) $app['config']['luminate-tenancy.replica_path'],
             $app->make(PlacementResolver::class)
         ));
+
+        $this->app->singleton(QueueTagger::class, fn ($app) => new QueueTagger($this->signingKeys($app['config']['luminate-tenancy'])));
+        $this->app->singleton(QueueTenantGate::class, fn ($app) => new QueueTenantGate($app->make(QueueTagger::class), $app->make(TenantReplica::class)));
+        $this->app->singleton(TenantQueueGuard::class);
 
         $this->app->singleton(VerifyTenantContext::class);
 
@@ -66,13 +75,32 @@ final class TenancyServiceProvider extends ServiceProvider
         $this->publishes([__DIR__ . '/../config/luminate-tenancy.php' => config_path('luminate-tenancy.php')], 'luminate-tenancy-config');
         $this->loadMigrationsFrom(__DIR__ . '/../database/migrations');
 
+        // Every job created anywhere (request, command, scheduler) is stamped with the active tenant.
+        $guard = $this->app->make(TenantQueueGuard::class);
+        $guard->registerPayloadHook();
+
         if ($this->app->runningInConsole()) {
-            $this->commands([StatusCommand::class, ProvisionTenantCommand::class]);
+            // Workers have no signed request: they verify the job's tag and read status/placement from the local replica (§A.2).
+            $guard->registerWorkerHooks($this->app['events'], $this->app['queue']);
+
+            $commands = [StatusCommand::class, ProvisionTenantCommand::class];
+            if ((bool) $this->app['config']['luminate-tenancy.fixtures']) {
+                $commands[] = ProbeJobCommand::class;
+            }
+            $this->commands($commands);
 
             return;
         }
 
-        // HTTP only: artisan/queue/scheduler get their tenant from the job payload and the local replica (contract §A.2).
         $this->app->make(HttpKernel::class)->prependMiddleware(VerifyTenantContext::class);
+    }
+
+    /** @return list<string> current key first, then the optional previous key */
+    private function signingKeys(array $cfg): array
+    {
+        return array_values(array_filter(
+            [$cfg['keys']['current'] ?? null, $cfg['keys']['previous'] ?? null],
+            static fn ($k) => is_string($k) && $k !== ''
+        ));
     }
 }

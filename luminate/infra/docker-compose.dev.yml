@@ -1,0 +1,10 @@
+# DEV-ONLY overrides. NOT production-safe: never deploy with this file.
+#   - Swagger UI and the OpenAPI spec are served without an X-Tenant-Context token (GET/HEAD only);
+#   - the isolation-suite fixtures (probe job and its dispatch command) are registered.
+# bootstrap.ps1 sets COMPOSE_FILE in .env so a plain `docker compose up` includes this file locally.
+# The production-like stack is: docker compose -f docker-compose.yml up -d
+services:
+  api:
+    environment:
+      LUMINATE_TENANCY_EXEMPT_PATHS: api/documentation,api/documentation/*,docs,docs/*,api/oauth2-callback
+      LUMINATE_TENANCY_TEST_FIXTURES: "true"

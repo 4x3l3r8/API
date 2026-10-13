@@ -8,6 +8,9 @@ x-wellms-env: &wellms-env
   APP_ENV: production
   APP_DEBUG: "false"
   APP_LOG_LEVEL: info
+  # Containers log to stderr (collected by Docker). A log FILE is a trap here: anything run as root inside the container
+  # (docker exec, artisan) creates it root-owned and php-fpm (www-data) then 500s on every request that logs.
+  LOG_CHANNEL: stderr
   APP_KEY: ${APP_KEY:?run bootstrap.ps1}
   APP_URL: http://${LAN_HOST:?}:${API_PORT:-8080}
   DB_CONNECTION: pgsql
@@ -43,8 +46,10 @@ x-wellms-env: &wellms-env
   # luminate/tenancy (contract v3 §A.1)
   TENANT_CONTEXT_KEY: ${TENANT_CONTEXT_KEY:?run bootstrap.ps1}
   TENANT_CONTEXT_KEY_PREVIOUS: ${TENANT_CONTEXT_KEY_PREVIOUS:-}
-  # GET/HEAD paths served without a context token. Dev only (Swagger); set empty in production.
-  LUMINATE_TENANCY_EXEMPT_PATHS: ${LUMINATE_TENANCY_EXEMPT_PATHS:-api/documentation,api/documentation/*,docs,docs/*,api/oauth2-callback}
+  # Secure by default: NO path is served without a context token and no test fixtures exist. docker-compose.dev.yml
+  # opts in to the Swagger exemption and the fixtures; never combine it with a production deployment.
+  LUMINATE_TENANCY_EXEMPT_PATHS: ${LUMINATE_TENANCY_EXEMPT_PATHS:-}
+  LUMINATE_TENANCY_TEST_FIXTURES: ${LUMINATE_TENANCY_TEST_FIXTURES:-false}
   LUMINATE_TENANCY_CONNECTIONS: ${LUMINATE_TENANCY_CONNECTIONS:-shard-1=pgsql}
   LUMINATE_TENANCY_BUCKETS: ${S3_BUCKET:-wellms}
 
@@ -189,6 +194,9 @@ services:
       DB_USERNAME: ${DB_APP_USER:-wellms_app}
       DB_PASSWORD: ${DB_APP_PASSWORD}
       DISABLE_PHP_FPM: "true"
+      # The stock scheduler loop runs `schedule:run` with NO tenant; every job it dispatches would be refused. The
+      # per-tenant scheduler (luminate:schedule:work, driven by the replica) replaces it.
+      DISABLE_SCHEDULER: "true"
       DISABLE_DB_MIGRATE: "true"
       DISABLE_DB_SEED: "true"
     volumes:

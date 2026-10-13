@@ -36,6 +36,9 @@ return [
     'connections' => $connections,
     'allowed_buckets' => $list(env('LUMINATE_TENANCY_BUCKETS', env('AWS_BUCKET', ''))),
 
+    // Test fixtures (probe job + dispatch command used by the isolation suite). MUST be false outside dev/test.
+    'fixtures' => filter_var(env('LUMINATE_TENANCY_TEST_FIXTURES', false), FILTER_VALIDATE_BOOLEAN),
+
     // Local registry replica for out-of-request work (contract §A.2). Interim: a static snapshot file.
     'replica_path' => env('LUMINATE_TENANCY_REPLICA', '/etc/luminate/tenants.json'),
 

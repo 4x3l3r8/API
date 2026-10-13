@@ -25,6 +25,7 @@ final class TenantReplica
 {
     /** @var array<string,array{status:string,placement:array<string,string>}>|null */
     private ?array $tenants = null;
+    private int $loadedMtime = 0;
 
     public function __construct(private readonly string $path, private readonly PlacementResolver $placements)
     {
@@ -72,11 +73,14 @@ final class TenantReplica
     /** @return array<string,array{status:string,placement:array<string,string>}> */
     private function load(): array
     {
-        if ($this->tenants !== null) {
-            return $this->tenants;
-        }
         if (!is_file($this->path) || !is_readable($this->path)) {
             throw new RuntimeException("Tenant replica snapshot not found at {$this->path}");
+        }
+        // long-lived workers/schedulers: pick up a rewritten snapshot (status changes, new tenants) without a restart
+        clearstatcache(true, $this->path);
+        $mtime = (int) filemtime($this->path);
+        if ($this->tenants !== null && $mtime === $this->loadedMtime) {
+            return $this->tenants;
         }
         $data = json_decode((string) file_get_contents($this->path), true, 16, JSON_THROW_ON_ERROR);
         $tenants = $data['tenants'] ?? null;
@@ -91,6 +95,8 @@ final class TenantReplica
                 throw new RuntimeException("Tenant replica entry for '{$tid}' is incomplete");
             }
         }
+
+        $this->loadedMtime = $mtime;
 
         return $this->tenants = $tenants;
     }
