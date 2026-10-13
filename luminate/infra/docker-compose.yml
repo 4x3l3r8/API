@@ -62,6 +62,8 @@ services:
     volumes:
       - pgdata:/var/lib/postgresql/data
       - ./postgres/init:/docker-entrypoint-initdb.d:ro
+      # tenancy SQL primitives: installed by 02-tenancy.sh on first start, re-applied by the add-on migration
+      - ../addons/luminate-tenancy/database/sql:/luminate-sql:ro
     healthcheck:
       # -h 127.0.0.1: the temporary init-time server listens on the unix socket only, so a
       # socket check would report healthy before the real server accepts TCP connections.
@@ -141,11 +143,30 @@ services:
       disable: true
     restart: "no"
 
-  api:
+  # Per-tenant baseline data (roles, permissions, first admin, Passport client) as the RLS-bound APP role.
+  # Re-run for one tenant: docker compose run --rm provision t-alpha
+  provision:
     image: luminate/wellms:1.0.54
     pull_policy: never
     depends_on:
       migrate: {condition: service_completed_successfully}
+    environment:
+      <<: *wellms-env
+      DB_USERNAME: ${DB_APP_USER:-wellms_app}
+      DB_PASSWORD: ${DB_APP_PASSWORD}
+    volumes:
+      - ./scripts/provision.sh:/provision.sh:ro
+      - ./tenants.snapshot.json:/etc/luminate/tenants.json:ro
+    entrypoint: ["/bin/sh", "/provision.sh"]
+    healthcheck:
+      disable: true
+    restart: "no"
+
+  api:
+    image: luminate/wellms:1.0.54
+    pull_policy: never
+    depends_on:
+      provision: {condition: service_completed_successfully}
     environment:
       <<: *wellms-env
       DB_USERNAME: ${DB_APP_USER:-wellms_app}
@@ -154,13 +175,15 @@ services:
       DISABLE_SCHEDULER: "true"
       DISABLE_DB_MIGRATE: "true"
       DISABLE_DB_SEED: "true"
+    volumes:
+      - ./tenants.snapshot.json:/etc/luminate/tenants.json:ro
     restart: unless-stopped
 
   worker:
     image: luminate/wellms:1.0.54
     pull_policy: never
     depends_on:
-      migrate: {condition: service_completed_successfully}
+      provision: {condition: service_completed_successfully}
     environment:
       <<: *wellms-env
       DB_USERNAME: ${DB_APP_USER:-wellms_app}
@@ -168,6 +191,8 @@ services:
       DISABLE_PHP_FPM: "true"
       DISABLE_DB_MIGRATE: "true"
       DISABLE_DB_SEED: "true"
+    volumes:
+      - ./tenants.snapshot.json:/etc/luminate/tenants.json:ro
     restart: unless-stopped
 
   caddy:

@@ -1,0 +1,18 @@
+{
+  "version": 1,
+  "_comment": "Interim local replica of the Luminate tenant registry (contract v3 A.2). DEV fake tenants only. Production: written by push-from-Luminate + periodic reconcile (follow-up).",
+  "tenants": {
+    "t-alpha": {
+      "status": "active",
+      "placement": { "mode": "pooled", "connection": "shard-1", "bucket": "wellms", "cache_prefix": "t-alpha" }
+    },
+    "t-beta": {
+      "status": "active",
+      "placement": { "mode": "pooled", "connection": "shard-1", "bucket": "wellms", "cache_prefix": "t-beta" }
+    },
+    "t-gamma": {
+      "status": "suspended",
+      "placement": { "mode": "pooled", "connection": "shard-1", "bucket": "wellms", "cache_prefix": "t-gamma" }
+    }
+  }
+}

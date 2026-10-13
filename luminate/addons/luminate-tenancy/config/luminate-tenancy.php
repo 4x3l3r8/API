@@ -35,4 +35,15 @@ return [
     // The token never carries credentials: it names a placement, and Wellms maps it from its own config.
     'connections' => $connections,
     'allowed_buckets' => $list(env('LUMINATE_TENANCY_BUCKETS', env('AWS_BUCKET', ''))),
+
+    // Local registry replica for out-of-request work (contract §A.2). Interim: a static snapshot file.
+    'replica_path' => env('LUMINATE_TENANCY_REPLICA', '/etc/luminate/tenants.json'),
+
+    // Tables that are NOT tenant-owned: table => reason. Mirrored into luminate_tenancy_exempt by the install migration.
+    'exempt_tables' => [
+        'migrations' => 'Laravel migration ledger',
+        'failed_jobs' => 'global queue failure log; payloads are only read from the CLI, never exposed by the API',
+        'luminate_tenancy_exempt' => 'tenancy metadata',
+        'luminate_tenancy_audit' => 'tenancy metadata',
+    ],
 ];
