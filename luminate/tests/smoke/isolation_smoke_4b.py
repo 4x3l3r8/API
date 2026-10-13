@@ -104,19 +104,34 @@ _, la = emails("t-alpha", tok["t-alpha"])
 _, lb = emails("t-beta", tok["t-beta"])
 check("alpha's list holds alpha's users and not beta's", {ADMIN, a_only, shared} <= set(la) and b_only not in la, str(sorted(la)))
 check("beta's list holds beta's users and not alpha's", {ADMIN, b_only, shared} <= set(lb) and a_only not in lb, str(sorted(lb)))
-check("neither list is polluted: exactly 3 users each", len(la) == 3 and len(lb) == 3, f"alpha={len(la)} beta={len(lb)}")
+check("neither list holds ANY of the other tenant's users (across all runs)",
+      not any(e.endswith("@beta.test") for e in la) and not any(e.endswith("@alpha.test") for e in lb),
+      f"alpha={sorted(e for e in la if e.endswith('@beta.test'))} beta={sorted(e for e in lb if e.endswith('@alpha.test'))}")
 s, r = call("GET", f"/api/admin/users/{la[a_only]}", "t-alpha", tok["t-alpha"])
 check("alpha can read its own user by id", s == 200, str(s))
-s, r = call("GET", f"/api/admin/users/{la[a_only]}", "t-beta", tok["t-beta"])
-check("beta reading ALPHA's user by id gets 404", s == 404, f"{s} {str(r)[:100]}")
+GHOST = 987654321  # an id that exists in no tenant: the reference for "not found"
+missing = {m: call(m, f"/api/admin/users/{GHOST}", "t-beta", tok["t-beta"], {"first_name": "x", "last_name": "x", "email": "ghost@x.test"} if m == "PUT" else None)
+           for m in ("GET", "PUT", "DELETE")}
+
+
+def indistinguishable(method, victim_id, tid, body=None):
+    """A user in another tenant must look exactly like a user that does not exist (no existence oracle, no data)."""
+    s, r = call(method, f"/api/admin/users/{victim_id}", tid, tok[tid], body)
+    ref_s, ref_r = missing[method]
+    return s == ref_s and r == ref_r and a_only not in json.dumps(r) and b_only not in json.dumps(r), f"{s} {str(r)[:100]} vs ghost {ref_s} {str(ref_r)[:60]}"
+
+
+ok, d = indistinguishable("GET", la[a_only], "t-beta")
+check("beta reading ALPHA's user by id is indistinguishable from a non-existent id", ok, d)
 s, r = call("GET", f"/api/admin/users/{lb[b_only]}", "t-alpha", tok["t-alpha"])
-check("alpha reading BETA's user by id gets 404", s == 404, f"{s} {str(r)[:100]}")
+sg, rg = call("GET", f"/api/admin/users/{GHOST}", "t-alpha", tok["t-alpha"])
+check("alpha reading BETA's user by id is indistinguishable from a non-existent id", (s, r) == (sg, rg) and b_only not in json.dumps(r), f"{s} {str(r)[:100]} vs ghost {sg}")
 
 # --- writes are confined ----------------------------------------------------------------------------------------
-s, r = call("PUT", f"/api/admin/users/{la[a_only]}", "t-beta", tok["t-beta"], {"first_name": "HACKED", "last_name": "x", "email": a_only})
-check("beta cannot modify alpha's user (404)", s in (404, 403), f"{s} {str(r)[:100]}")
-s, r = call("DELETE", f"/api/admin/users/{la[a_only]}", "t-beta", tok["t-beta"])
-check("beta cannot delete alpha's user (404)", s in (404, 403), f"{s} {str(r)[:100]}")
+ok, d = indistinguishable("PUT", la[a_only], "t-beta", {"first_name": "HACKED", "last_name": "x", "email": a_only})
+check("beta cannot modify alpha's user (looks like a non-existent id)", ok, d)
+ok, d = indistinguishable("DELETE", la[a_only], "t-beta")
+check("beta cannot delete alpha's user (looks like a non-existent id)", ok, d)
 s, r = call("GET", f"/api/admin/users/{la[a_only]}", "t-alpha", tok["t-alpha"])
 check("alpha's user is intact afterwards (not modified, not deleted)", s == 200 and r["data"]["first_name"] == "Fake", f"{s} {str(r)[:100]}")
 

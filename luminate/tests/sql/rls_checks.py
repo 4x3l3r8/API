@@ -87,9 +87,11 @@ for label, sql in [("create a table", "create table zz_app_probe(id int)"),
 # --- tenant confinement ----------------------------------------------------------------------------------------
 tids = [t for t in ("t-alpha", "t-beta")]
 for t in tids:
-    users = scalar(APP, tenant(t) + "select count(*) from users")
+    admins = scalar(APP, tenant(t) + f"select count(*) from users where email = '{E['INITIAL_USER_EMAIL']}'")
     roles = scalar(APP, tenant(t) + "select count(*) from roles")
-    check(f"{t}: sees its own provisioned admin and roles", users == "1" and int(roles) > 0, f"users={users} roles={roles}")
+    foreign = scalar(APP, tenant(t) + f"select count(*) from users where tenant_id <> '{t}'")
+    check(f"{t}: sees exactly one admin (its own), its own roles, and no foreign rows", admins == "1" and int(roles) > 0 and foreign == "0",
+          f"admins={admins} roles={roles} foreign={foreign}")
 check("no tenant set: app role sees ZERO users / roles / oauth clients",
       scalar(APP, "select (select count(*) from users)+(select count(*) from roles)+(select count(*) from oauth_clients)") == "0")
 check("empty-string tenant also sees nothing", scalar(APP, tenant("") + "select count(*) from users") == "0")
