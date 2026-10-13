@@ -11,6 +11,10 @@ RUN cp docker/conf/supervisor/supervisord.conf /etc/supervisord.conf \
  && cp docker/conf/php/php-fpm-custom.conf /usr/local/etc/php-fpm.d/php-fpm-custom.conf \
  && cp luminate/infra/php-fpm-env.conf /usr/local/etc/php-fpm.d/zz-luminate-env.conf \
  && chmod +x init.sh
-RUN composer install --no-scripts --no-dev --prefer-dist --no-interaction
+# Add-on packages are registered inside the image only, so the repo's composer.json/composer.lock stay
+# untouched (no core patch). A partial `update` keeps every other package at its locked version.
+RUN composer config repositories.luminate-tenancy '{"type":"path","url":"luminate/packages/luminate-tenancy","options":{"symlink":false}}' \
+ && composer require luminate/tenancy:@dev --no-update --no-interaction \
+ && composer update luminate/tenancy --no-scripts --no-dev --prefer-dist --no-interaction --no-audit
 CMD ["/var/www/html/init.sh"]
 HEALTHCHECK --interval=30s --timeout=30s --start-period=60s --retries=5 CMD [ "php", "artisan", "health:check" ]

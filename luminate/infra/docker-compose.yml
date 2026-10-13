@@ -40,6 +40,13 @@ x-wellms-env: &wellms-env
   INITIAL_USER_PASSWORD: ${INITIAL_USER_PASSWORD:?}
   JWT_PUBLIC_KEY_BASE64: ${JWT_PUBLIC_KEY_BASE64:?}
   JWT_PRIVATE_KEY_BASE64: ${JWT_PRIVATE_KEY_BASE64:?}
+  # luminate/tenancy (contract v3 §A.1)
+  TENANT_CONTEXT_KEY: ${TENANT_CONTEXT_KEY:?run bootstrap.ps1}
+  TENANT_CONTEXT_KEY_PREVIOUS: ${TENANT_CONTEXT_KEY_PREVIOUS:-}
+  # GET/HEAD paths served without a context token. Dev only (Swagger); set empty in production.
+  LUMINATE_TENANCY_EXEMPT_PATHS: ${LUMINATE_TENANCY_EXEMPT_PATHS:-api/documentation,api/documentation/*,docs,docs/*,api/oauth2-callback}
+  LUMINATE_TENANCY_CONNECTIONS: ${LUMINATE_TENANCY_CONNECTIONS:-shard-1=pgsql}
+  LUMINATE_TENANCY_BUCKETS: ${S3_BUCKET:-wellms}
 
 services:
   postgres:

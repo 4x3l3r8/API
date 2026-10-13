@@ -48,6 +48,7 @@ $gen = @{
     MINIO_ROOT_PASSWORD    = New-Secret
     S3_SECRET_KEY          = New-Secret 30
     INITIAL_USER_PASSWORD  = New-Secret 12
+    TENANT_CONTEXT_KEY     = New-Secret 48
     JWT_PUBLIC_KEY_BASE64  = To-B64 $pub
     JWT_PRIVATE_KEY_BASE64 = To-B64 $priv
 }
