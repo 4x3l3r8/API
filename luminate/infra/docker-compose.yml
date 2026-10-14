@@ -194,6 +194,14 @@ services:
       DISABLE_DB_SEED: "true"
     volumes:
       - ./tenants.snapshot.json:/etc/luminate/tenants.json:ro
+    healthcheck:
+      # The image's own check (artisan health:check) reports healthy about 28 s before php-fpm accepts connections (init.sh is still
+      # running), and during that window Caddy answers 502. Healthy must mean "can serve": the FastCGI port is open.
+      test: ["CMD-SHELL", "nc -z 127.0.0.1 9000 || exit 1"]
+      interval: 5s
+      timeout: 3s
+      retries: 30
+      start_period: 5s
     restart: unless-stopped
 
   worker:

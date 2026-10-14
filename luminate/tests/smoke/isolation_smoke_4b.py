@@ -53,8 +53,16 @@ def check(name, ok, detail=""):
 
 
 def emails(tid, tok):
-    s, r = call("GET", "/api/admin/users?per_page=100", tid, tok)
-    return s, {u["email"]: u["id"] for u in (r.get("data") or [])} if isinstance(r, dict) else {}
+    """Every user of the tenant, ALL pages: the other suites leave hundreds of users behind, so one page proves nothing."""
+    out, page, status = {}, 1, 200
+    while True:
+        status, r = call("GET", f"/api/admin/users?per_page=100&page={page}", tid, tok)
+        if status != 200 or not isinstance(r, dict):
+            return status, out
+        out.update({u["email"]: u["id"] for u in (r.get("data") or [])})
+        if page >= int((r.get("meta") or {}).get("last_page", 1)):
+            return status, out
+        page += 1
 
 
 def new_user(tid, tok, email):

@@ -1,0 +1,55 @@
+# OPT-IN: put PgBouncer (transaction pooling) between the application and Postgres. Not part of the default dev stack.
+#
+#   docker compose -f docker-compose.yml -f docker-compose.dev.yml -f docker-compose.pgbouncer.yml up -d
+#
+# Only the RLS-bound APP role goes through the pooler (api, worker, scheduler, provision). The one-shot `migrate` job stays on a
+# direct connection: it runs DDL as the owner and migrations may rely on session state a transaction pooler would not keep.
+# Pool size is the experiment knob: PGB_POOL_SIZE=2 forces heavy backend sharing (the default here), =1 is the extreme.
+x-via-pooler: &via-pooler
+  DB_HOST: pgbouncer
+  DB_PORT: "6432"
+
+services:
+  pgbouncer:
+    image: edoburu/pgbouncer@sha256:9c78945868a6a142c7fc40ccd843bbe5a606df163c7ffce4de70e0d628d696a2
+    depends_on:
+      postgres: {condition: service_healthy}
+    environment:
+      DB_NAME: ${DB_NAME:-wellms}
+      DB_APP_USER: ${DB_APP_USER:-wellms_app}
+      DB_APP_PASSWORD: ${DB_APP_PASSWORD:?}
+      PGBOUNCER_ADMIN_PASSWORD: ${PGBOUNCER_ADMIN_PASSWORD:?run bootstrap.ps1 (or append PGBOUNCER_ADMIN_PASSWORD to .env)}
+      PGB_POOL_SIZE: ${PGB_POOL_SIZE:-2}
+    volumes:
+      - ./pgbouncer/pgbouncer.ini.tmpl:/etc/pgbouncer/pgbouncer.ini.tmpl:ro
+    entrypoint: ["/bin/sh", "-c"]
+    command:
+      - |
+        set -eu
+        umask 077
+        printf '"%s" "%s"\n"%s" "%s"\n' "$$DB_APP_USER" "$$DB_APP_PASSWORD" pgb_admin "$$PGBOUNCER_ADMIN_PASSWORD" > /tmp/userlist.txt
+        sed -e "s/@DB_NAME@/$$DB_NAME/g" -e "s/@POOL_SIZE@/$$PGB_POOL_SIZE/g" /etc/pgbouncer/pgbouncer.ini.tmpl > /tmp/pgbouncer.ini
+        exec pgbouncer /tmp/pgbouncer.ini
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -h 127.0.0.1 -p 6432"]
+      interval: 5s
+      timeout: 3s
+      retries: 20
+    restart: unless-stopped
+
+  api:
+    depends_on:
+      pgbouncer: {condition: service_healthy}
+    environment: *via-pooler
+  worker:
+    depends_on:
+      pgbouncer: {condition: service_healthy}
+    environment: *via-pooler
+  scheduler:
+    depends_on:
+      pgbouncer: {condition: service_healthy}
+    environment: *via-pooler
+  provision:
+    depends_on:
+      pgbouncer: {condition: service_healthy}
+    environment: *via-pooler

@@ -40,6 +40,10 @@ return [
     // superuser). The process refuses to run tenant work if its configured DB user is in this list.
     'forbidden_db_users' => $list(env('LUMINATE_TENANCY_FORBIDDEN_DB_USERS', '')),
 
+    // PDO::PGSQL_ATTR_DISABLE_PREPARES for every pgsql connection. REQUIRED behind PgBouncer in transaction mode: pdo_pgsql's named
+    // server-side prepares abort the transaction there (Luminate\Tenancy\Database\PgsqlOptions). Behaves the same over a direct connection.
+    'pooler_safe_prepares' => filter_var(env('LUMINATE_DB_POOLER_SAFE_PREPARES', true), FILTER_VALIDATE_BOOLEAN),
+
     // Job classes that must never run on this deployment, whatever tenant or tag they carry (checked by the queue guard before
     // anything else). Contract §H: Wellms never autonomously moves money. Luminate/PortalAcademy own commerce.
     'denied_jobs' => $list(env('LUMINATE_DENIED_JOBS', 'EscolaLms\Cart\Jobs\RenewRecursiveProduct,EscolaLms\Cart\Jobs\RenewRecursiveProductUser')),

@@ -32,6 +32,7 @@ use Luminate\Tenancy\Context\CurrentTenant;
 use Luminate\Tenancy\Context\PlacementResolver;
 use Luminate\Tenancy\Context\TenantRuntime;
 use Luminate\Tenancy\Database\AppRoleGuard;
+use Luminate\Tenancy\Database\PgsqlOptions;
 use Luminate\Tenancy\Database\TenantPostgresConnection;
 use Luminate\Tenancy\Http\Middleware\VerifyTenantContext;
 use Luminate\Tenancy\Queue\QueueTagger;
@@ -116,6 +117,12 @@ final class TenancyServiceProvider extends ServiceProvider
         });
         $this->app->singleton(TenantTokenBinding::class);
         $this->app->singleton(VerifyTenantContext::class);
+
+        // Behind PgBouncer in transaction mode, pdo_pgsql's named server-side prepared statements abort the transaction (see PgsqlOptions).
+        // Applied before any connection exists. Identical behaviour over a direct connection, so it is on in every topology.
+        if ((bool) $this->app['config']['luminate-tenancy.pooler_safe_prepares']) {
+            $this->app['config']->set('database.connections', PgsqlOptions::forTransactionPooling((array) $this->app['config']['database.connections']));
+        }
 
         // Every pgsql connection scopes its statements to the current tenant with a transaction-local setting.
         // Registered in register() so it is in place before any other provider resolves a connection.

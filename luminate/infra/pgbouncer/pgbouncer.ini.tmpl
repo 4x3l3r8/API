@@ -1,0 +1,38 @@
+# PgBouncer in TRANSACTION pooling mode, the topology contract section H requires. Rendered at start-up by the compose file
+# (the two @...@ placeholders), because the pool size is an experiment knob and the credentials must not live in this file.
+#
+# Deliberately NOT a tuned production config: the pool is tiny (default 2) so that many clients are forced to share very few
+# backend connections. That is the worst case for tenant isolation, which is the point of using it for the live run.
+
+[databases]
+@DB_NAME@ = host=postgres port=5432 dbname=@DB_NAME@
+
+[pgbouncer]
+listen_addr = 0.0.0.0
+listen_port = 6432
+unix_socket_dir =
+
+# Clients and the server both authenticate with SCRAM (Postgres 16 default). The userlist is generated from the environment.
+auth_type = scram-sha-256
+auth_file = /tmp/userlist.txt
+admin_users = pgb_admin
+
+# transaction mode: a server connection is held only for the duration of one transaction, then returned to the pool.
+pool_mode = transaction
+default_pool_size = @POOL_SIZE@
+max_db_connections = @POOL_SIZE@
+reserve_pool_size = 0
+min_pool_size = 0
+max_client_conn = 500
+
+# No DISCARD ALL between clients: that is the transaction-mode default and exactly why a session-level setting would leak.
+server_reset_query =
+server_reset_query_always = 0
+
+# Laravel uses server-side prepared statements (named, protocol level). PgBouncer must track them across backends.
+max_prepared_statements = 200
+
+ignore_startup_parameters = extra_float_digits
+log_connections = 0
+log_disconnections = 0
+stats_period = 60

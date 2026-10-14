@@ -30,6 +30,7 @@ Contract: `docs/LMS_INTEGRATION_CONTRACT.md` (v3). Where this deviates or extend
 | Grades ride on the pull: `is_fully_graded` on the attempts list/detail (contract v5 §F) | one key added to the response by a middleware (no core patch), one query per page | `webhooks_e2e.py`, `quiz_timeout_probe.py` |
 | Wellms never autonomously moves money (contract §H) | cart/subscription schedule events skipped; the renewal jobs are refused by the worker | `ops_guards.py` |
 | `failed_jobs` (global, un-tenanted) does not grow forever | `luminate:maintenance`, hourly from the scheduler service, outside any tenant; 14 days by default | `ops_guards.py` |
+| Safe behind PgBouncer in TRANSACTION pooling (contract §H): no tenant setting survives its transaction; works with statements outside a transaction | `SET LOCAL` per transaction; `PDO::PGSQL_ATTR_DISABLE_PREPARES` (`PgsqlOptions`); `docker-compose.pgbouncer.yml` | `pooler_isolation.py`, `pooler_interleaved_load.py`, every other suite re-run through the pooler |
 
 ## Running the suites
 Stack up (`infra/README.md`), dev override included (it is the local default), then from `luminate/infra`:
@@ -40,6 +41,47 @@ python -I ..\tests\sql\rls_checks.py              # config_isolation, storage_is
                                                   # webhooks_e2e (about 4 min), ops_guards, quiz_timeout_probe (about 2 min)
 ```
 `webhooks_e2e.py` needs the dev override (a test receiver on 127.0.0.1:8099 and short retry timings, 3,5,8,10 s with a 40 s cap).
+
+## Running behind PgBouncer (transaction mode)
+```
+docker compose -f docker-compose.yml -f docker-compose.dev.yml -f docker-compose.pgbouncer.yml up -d     # from luminate/infra
+python -I ..\tests\smoke\pooler_isolation.py            # reuse across tenants, statements outside a transaction, a control that MUST leak
+python -I ..\tests\smoke\pooler_interleaved_load.py     # two tenants hammering the real API (count-driven: >= 60 cross-tenant reads)
+powershell -File .\pooler_sweep.ps1 -Label x -Pools "2,10,20"   # same load direct vs pooled at several pool sizes
+```
+Only the app role goes through the pooler; the one-shot `migrate` job stays direct. The pool is deliberately tiny (2) so clients must share backends.
+Plain `docker compose up -d` (no pooler file) returns to a direct connection.
+
+What the live run found (all reproduced by `pooler_isolation.py` section A):
+1. **Laravel's default PDO mode breaks behind a transaction-mode pooler.** pdo_pgsql sends `DEALLOCATE` when a prepared statement object is destroyed;
+   PgBouncer has renamed it, the backend errors, the transaction aborts and the next statement fails with 25P02. Fine over a direct connection.
+2. **Emulated prepares are NOT the fix.** Laravel casts bools to ints; emulation inlines `revoked = 0` against a boolean column: "operator does not
+   exist: boolean = integer". It broke every login, even direct. The fix is `PDO::PGSQL_ATTR_DISABLE_PREPARES` (unnamed extended-protocol statements,
+   Postgres still infers parameter types). It is on in every topology (`LUMINATE_DB_POOLER_SAFE_PREPARES`, default true), as `PgsqlOptions`.
+3. The API container reported healthy about 28 s before it could serve (502 meanwhile); its healthcheck now tests the FastCGI port.
+
+Isolation result (pool of 2 backends, tenants interleaved): 10,000 transactions from 16 clients with 0 violations; every backend served all three tenants
+and tenant-less transactions in turn; 9,000 operations through the real connection class from 6 concurrent tenants (statements outside a transaction,
+inside `DB::transaction`, Eloquent, bound parameters, raw reads that bypass the wrapper) with 0 violations; 476 concurrent HTTP requests (61 cross-tenant
+reads, 51 wrong-context tokens) with 0 observations and the composite unique key intact. The control (a session-level setting) does leak, so the probe can see one.
+
+Cost of the tenant-scoping connection (dev laptop, containers on one host, so round trips are cheap; **p50, direct unless stated**):
+
+| | per statement |
+|---|---|
+| unscoped statement (no tenant scoping) | 447 us direct, 722 us via PgBouncer |
+| current wrapper outside a transaction (BEGIN, set_config, statement, COMMIT = 4 round trips) | 1254 us direct, 2329 us via PgBouncer |
+| inside an explicit transaction, per statement (BEGIN + set_config once) | 479 us direct, 729 us via PgBouncer: about +32 us |
+| BEGIN and set_config merged into one round trip (not built) | 994 us direct, 1890 us via PgBouncer: about 27 to 32 percent less overhead |
+
+On real requests (same statements, wrapped versus a plain connection, 30 interleaved repetitions, warm caches): about **0.62 ms per statement outside a
+transaction**: profile (6 statements) +1 ms, courses (39) +26 ms (+42%), quiz attempts (66) +41 ms (+34%), users list (57) +35 ms (+6%). With a cold
+cache the same requests make 11, 17, 35, 86, 208 statements (login, profile, courses, attempts, users list). The pooler hop itself adds roughly 20 to 70 ms
+to those requests (users list 743 to 811 ms single client). The overhead grows linearly with network round-trip time: it is 3 extra round trips per statement.
+
+Capacity: the same 16-worker, two-tenant load gave about 4 req/s direct and 3.9 / 4.3 / 4.5 req/s at pool sizes 2 / 10 / 20, so **neither the pooler nor the
+pool size is the limit here**. The API container's PHP is (about 3.3 cores busy while Postgres used about 0.5 core and PgBouncer about 0.5 core; a trivial
+request costs about 200 ms of PHP).
 Unit tests (no stack needed): see `addons/luminate-tenancy/tests` (`composer install && vendor/bin/phpunit` in the package directory,
 e.g. inside the built image with `--entrypoint sh`). All suites are re-runnable and leave only fake data behind.
 
@@ -70,7 +112,12 @@ e.g. inside the built image with `--entrypoint sh`). All suites are re-runnable 
 - `topic_type` in `topic.completed` is Wellms' own `topicable_type` (the model class), exactly as its API exposes it.
 
 ## Known gaps and unknowns
-- **Parked (4d):** replica push + reconcile sync; a live run behind PgBouncer in transaction mode (`SET LOCAL` is proven to be transaction-scoped, but not yet through a real pooler).
+- **Parked (4d):** replica push + reconcile sync (the PgBouncer live run is done, see above).
+- **Cost of per-statement scoping:** about 0.62 ms per statement outside a transaction on this host; material for chatty requests and linear in network round-trip time.
+  Options, none built: merge BEGIN + set_config into one round trip (about 27 to 32 percent of the overhead, a small change to the connection class), cut Wellms'
+  statement count per request (its role/permission loading is an N+1: 208 statements for a cold users list), run PgBouncer next to the app, or scope a whole read-only
+  request with one transaction (fewer round trips, but it holds a pooler backend for the whole request).
+- **PgBouncer config is a dev experiment:** plain-text userlist from env and a tiny pool; production should use `auth_query` and a real pool size.
 - **Batch 6:** the generated cross-tenant suite over all 439 operations (the current suites are hand-written and cover the paths above, not every operation).
 - **Webhooks:** delivery is at-least-once (a lost job, a crashed worker or a suspended tenant leaves a due row, and the sweeper re-sends it; the
   receiver dedups on the delivery id). Retries are timely through delayed jobs, with the once-a-minute sweeper as the safety net. A delivery older
