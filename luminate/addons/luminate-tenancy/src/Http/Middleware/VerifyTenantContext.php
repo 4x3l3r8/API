@@ -12,6 +12,7 @@ use Luminate\Tenancy\Context\ContextRejected;
 use Luminate\Tenancy\Context\ContextTokenVerifier;
 use Luminate\Tenancy\Context\PlacementResolver;
 use Luminate\Tenancy\Context\TenantRuntime;
+use Luminate\Tenancy\Database\AppRoleGuard;
 use Symfony\Component\HttpFoundation\Response;
 
 /**
@@ -25,12 +26,22 @@ final class VerifyTenantContext
         private readonly PlacementResolver $placements,
         private readonly TenantRuntime $runtime,
         private readonly TenantTokenBinding $binding,
+        private readonly AppRoleGuard $roleGuard,
     ) {
     }
 
     public function handle(Request $request, Closure $next): Response
     {
         $this->runtime->deactivate();
+
+        // First of all, before even the exempt paths: a process configured with a role that bypasses RLS serves nothing.
+        try {
+            $this->roleGuard->assertSafe();
+        } catch (\RuntimeException $e) {
+            Log::critical($e->getMessage());
+
+            return response()->json(['message' => 'Service misconfigured.', 'code' => 'tenant_context_forbidden_db_role'], 503);
+        }
 
         if ($this->isExempt($request)) {
             return $next($request);

@@ -50,6 +50,8 @@ x-wellms-env: &wellms-env
   # opts in to the Swagger exemption and the fixtures; never combine it with a production deployment.
   LUMINATE_TENANCY_EXEMPT_PATHS: ${LUMINATE_TENANCY_EXEMPT_PATHS:-}
   LUMINATE_TENANCY_TEST_FIXTURES: ${LUMINATE_TENANCY_TEST_FIXTURES:-false}
+  # Request, job and provisioning work refuses to run if its DB user is one of these (the owner is for migrations only).
+  LUMINATE_TENANCY_FORBIDDEN_DB_USERS: ${DB_OWNER_USER:-wellms_owner},${DB_BOOTSTRAP_USER:-db_bootstrap}
   LUMINATE_TENANCY_CONNECTIONS: ${LUMINATE_TENANCY_CONNECTIONS:-shard-1=pgsql}
   LUMINATE_TENANCY_BUCKETS: ${S3_BUCKET:-wellms}
 
@@ -201,6 +203,29 @@ services:
       DISABLE_DB_SEED: "true"
     volumes:
       - ./tenants.snapshot.json:/etc/luminate/tenants.json:ro
+    restart: unless-stopped
+
+  # Per-tenant scheduler: one `schedule:run` child process per ACTIVE tenant per minute, tenants taken from the replica.
+  scheduler:
+    image: luminate/wellms:1.0.54
+    pull_policy: never
+    depends_on:
+      provision: {condition: service_completed_successfully}
+    environment:
+      <<: *wellms-env
+      DB_USERNAME: ${DB_APP_USER:-wellms_app}
+      DB_PASSWORD: ${DB_APP_PASSWORD}
+    volumes:
+      - ./scripts/scheduler.sh:/scheduler.sh:ro
+      - ./tenants.snapshot.json:/etc/luminate/tenants.json:ro
+    entrypoint: ["/bin/sh", "/scheduler.sh"]
+    healthcheck:
+      # healthy while the scheduler loop keeps ticking (it touches this file after every tick)
+      test: ["CMD-SHELL", "test $$(( $$(date +%s) - $$(stat -c %Y /tmp/luminate-scheduler.heartbeat 2>/dev/null || echo 0) )) -lt 150"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 120s
     restart: unless-stopped
 
   caddy:

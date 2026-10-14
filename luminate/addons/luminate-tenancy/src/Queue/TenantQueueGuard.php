@@ -16,6 +16,7 @@ use Illuminate\Queue\QueueManager;
 use Illuminate\Support\Facades\Log;
 use Luminate\Tenancy\Context\CurrentTenant;
 use Luminate\Tenancy\Context\TenantRuntime;
+use Luminate\Tenancy\Database\AppRoleGuard;
 
 /**
  * Framework glue for queue isolation. Two halves:
@@ -35,6 +36,7 @@ final class TenantQueueGuard
         private readonly QueueTenantGate $gate,
         private readonly TenantRuntime $runtime,
         private readonly CurrentTenant $current,
+        private readonly AppRoleGuard $roleGuard,
     ) {
     }
 
@@ -63,6 +65,9 @@ final class TenantQueueGuard
             if ($event->job instanceof SyncJob) {
                 return;
             }
+            // a worker configured with the owner/superuser must not run tenant jobs. Not dead-lettered: the job is not at
+            // fault, so this takes the ordinary failure path (failed_jobs, retryable once the worker is fixed).
+            $this->roleGuard->assertSafe();
             $this->runtime->deactivate(longLivedProcess: true);
 
             $admission = $this->gate->admit($event->job->payload());

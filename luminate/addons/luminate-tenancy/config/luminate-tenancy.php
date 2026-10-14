@@ -36,6 +36,10 @@ return [
     'connections' => $connections,
     'allowed_buckets' => $list(env('LUMINATE_TENANCY_BUCKETS', env('AWS_BUCKET', ''))),
 
+    // Database roles that must NEVER serve request / queue-job / provisioning work (the migration owner, the bootstrap
+    // superuser). The process refuses to run tenant work if its configured DB user is in this list.
+    'forbidden_db_users' => $list(env('LUMINATE_TENANCY_FORBIDDEN_DB_USERS', '')),
+
     // Test fixtures (probe job + dispatch command used by the isolation suite). MUST be false outside dev/test.
     'fixtures' => filter_var(env('LUMINATE_TENANCY_TEST_FIXTURES', false), FILTER_VALIDATE_BOOLEAN),
 

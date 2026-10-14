@@ -9,6 +9,7 @@ use Illuminate\Support\Facades\Artisan;
 use Illuminate\Support\Facades\DB;
 use Luminate\Tenancy\Context\ContextRejected;
 use Luminate\Tenancy\Context\TenantRuntime;
+use Luminate\Tenancy\Database\AppRoleGuard;
 use Luminate\Tenancy\Replica\TenantReplica;
 
 /**
@@ -27,8 +28,9 @@ final class ProvisionTenantCommand extends Command
         {--admin-password= : override the admin password for this tenant}';
     protected $description = 'Seed roles, permissions, the first admin and the Passport personal client for a tenant.';
 
-    public function handle(TenantReplica $replica, TenantRuntime $runtime): int
+    public function handle(TenantReplica $replica, TenantRuntime $runtime, AppRoleGuard $roleGuard): int
     {
+        $roleGuard->assertSafe();
         $this->assertRlsBound();
 
         $tids = $this->option('all') ? $replica->ids() : array_filter([(string) $this->argument('tid')]);

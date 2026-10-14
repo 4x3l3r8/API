@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace Luminate\Tenancy;
 
+use Illuminate\Console\Scheduling\Schedule;
 use Illuminate\Contracts\Http\Kernel as HttpKernel;
 use Illuminate\Database\Connection;
 use Illuminate\Support\ServiceProvider;
@@ -16,13 +17,17 @@ use Luminate\Tenancy\Context\ContextTokenVerifier;
 use Luminate\Tenancy\Context\CurrentTenant;
 use Luminate\Tenancy\Context\PlacementResolver;
 use Luminate\Tenancy\Context\TenantRuntime;
+use Luminate\Tenancy\Database\AppRoleGuard;
 use Luminate\Tenancy\Database\TenantPostgresConnection;
 use Luminate\Tenancy\Http\Middleware\VerifyTenantContext;
 use Luminate\Tenancy\Queue\QueueTagger;
 use Luminate\Tenancy\Queue\QueueTenantGate;
 use Luminate\Tenancy\Queue\TenantQueueGuard;
 use Luminate\Tenancy\Replica\TenantReplica;
+use Luminate\Tenancy\Scheduling\ScheduleWorkCommand;
 use Luminate\Tenancy\Testing\ProbeJobCommand;
+use Luminate\Tenancy\Testing\ProbeScheduleCommand;
+use Luminate\Tenancy\Testing\ProbeSnapshot;
 use Luminate\Tenancy\Testing\ProbeStorageCommand;
 
 final class TenancyServiceProvider extends ServiceProvider
@@ -64,6 +69,14 @@ final class TenancyServiceProvider extends ServiceProvider
         $this->app->singleton(QueueTenantGate::class, fn ($app) => new QueueTenantGate($app->make(QueueTagger::class), $app->make(TenantReplica::class)));
         $this->app->singleton(TenantQueueGuard::class);
 
+        $this->app->singleton(AppRoleGuard::class, function ($app) {
+            $conn = $app['config']['database.default'];
+
+            return new AppRoleGuard(
+                (array) $app['config']['luminate-tenancy.forbidden_db_users'],
+                (string) $app['config']["database.connections.{$conn}.username"]
+            );
+        });
         $this->app->singleton(TenantTokenBinding::class);
         $this->app->singleton(VerifyTenantContext::class);
 
@@ -93,17 +106,43 @@ final class TenancyServiceProvider extends ServiceProvider
             // Workers have no signed request: they verify the job's tag and read status/placement from the local replica (§A.2).
             $guard->registerWorkerHooks($this->app['events'], $this->app['queue']);
 
-            $commands = [StatusCommand::class, ProvisionTenantCommand::class];
+            $commands = [StatusCommand::class, ProvisionTenantCommand::class, ScheduleWorkCommand::class];
             if ((bool) $this->app['config']['luminate-tenancy.fixtures']) {
                 $commands[] = ProbeJobCommand::class;
                 $commands[] = ProbeStorageCommand::class;
+                $commands[] = ProbeScheduleCommand::class;
+
+                // one in-process event and one child-process event, so the suite can prove both run as the tenant
+                $this->callAfterResolving(Schedule::class, function (Schedule $schedule): void {
+                    $schedule->call(fn () => ProbeSnapshot::record('schedule-closure'))->everyMinute()->name('luminate-probe-closure');
+                    $schedule->command('luminate:tenancy:probe-schedule')->everyMinute();
+                });
             }
             $this->commands($commands);
+
+            // LUMINATE_TENANT=<tid> makes ANY artisan command start as that tenant (scheduled command() events are child
+            // processes and inherit it). Fail closed: an unknown or non-active tenant aborts the command.
+            $this->app->booted(fn () => $this->activateTenantFromEnvironment());
 
             return;
         }
 
         $this->app->make(HttpKernel::class)->prependMiddleware(VerifyTenantContext::class);
+    }
+
+    private function activateTenantFromEnvironment(): void
+    {
+        $tid = getenv('LUMINATE_TENANT');
+        if (!is_string($tid) || $tid === '') {
+            return;
+        }
+
+        try {
+            $resolved = $this->app->make(TenantReplica::class)->resolve($tid, ['active']);
+        } catch (\Throwable $e) {
+            throw new \RuntimeException("LUMINATE_TENANT={$tid} refused: tenant is unknown, not active, or its placement is unsupported here (" . $e::class . ').');
+        }
+        $this->app->make(TenantRuntime::class)->activate($resolved, longLivedProcess: true);
     }
 
     /** @return list<string> current key first, then the optional previous key */

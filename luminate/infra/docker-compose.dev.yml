@@ -8,3 +8,7 @@ services:
     environment:
       LUMINATE_TENANCY_EXEMPT_PATHS: api/documentation,api/documentation/*,docs,docs/*,api/oauth2-callback
       LUMINATE_TENANCY_TEST_FIXTURES: "true"
+  scheduler:
+    environment:
+      # registers the scheduled probe events the isolation suite checks (one closure, one child-process command)
+      LUMINATE_TENANCY_TEST_FIXTURES: "true"
