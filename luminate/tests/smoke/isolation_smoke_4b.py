@@ -74,9 +74,9 @@ check("the two admins are different rows (different ids) despite identical crede
 
 # --- token confusion --------------------------------------------------------------------------------------------
 s, _ = call("GET", "/api/profile/me", "t-beta", tok["t-alpha"])
-check("alpha's bearer token under beta's context is rejected (401)", s == 401, str(s))
+check("alpha's bearer token under beta's context is rejected (403, contract §D.5 token binding)", s == 403, str(s))
 s, _ = call("GET", "/api/profile/me", "t-alpha", tok["t-beta"])
-check("beta's bearer token under alpha's context is rejected (401)", s == 401, str(s))
+check("beta's bearer token under alpha's context is rejected (403, contract §D.5 token binding)", s == 403, str(s))
 s, _ = call("GET", "/api/profile/me", None, tok["t-alpha"])
 check("a bearer token with NO tenant context is rejected (401)", s == 401, str(s))
 s, r = call("GET", "/api/profile/me", "t-gamma", tok["t-alpha"], token=ct.mint(KEY, "t-gamma", status="suspended"))

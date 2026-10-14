@@ -7,6 +7,9 @@ namespace Luminate\Tenancy;
 use Illuminate\Contracts\Http\Kernel as HttpKernel;
 use Illuminate\Database\Connection;
 use Illuminate\Support\ServiceProvider;
+use Laravel\Passport\Passport;
+use Luminate\Tenancy\Auth\TenantAccessToken;
+use Luminate\Tenancy\Auth\TenantTokenBinding;
 use Luminate\Tenancy\Console\ProvisionTenantCommand;
 use Luminate\Tenancy\Console\StatusCommand;
 use Luminate\Tenancy\Context\ContextTokenVerifier;
@@ -60,6 +63,7 @@ final class TenancyServiceProvider extends ServiceProvider
         $this->app->singleton(QueueTenantGate::class, fn ($app) => new QueueTenantGate($app->make(QueueTagger::class), $app->make(TenantReplica::class)));
         $this->app->singleton(TenantQueueGuard::class);
 
+        $this->app->singleton(TenantTokenBinding::class);
         $this->app->singleton(VerifyTenantContext::class);
 
         // Every pgsql connection scopes its statements to the current tenant with a transaction-local setting.
@@ -74,6 +78,11 @@ final class TenancyServiceProvider extends ServiceProvider
     {
         $this->publishes([__DIR__ . '/../config/luminate-tenancy.php' => config_path('luminate-tenancy.php')], 'luminate-tenancy-config');
         $this->loadMigrationsFrom(__DIR__ . '/../database/migrations');
+
+        // Every Passport access token (login, impersonate, personal tokens) is stamped with the issuing tenant (contract §D.5).
+        if (class_exists(Passport::class)) {
+            Passport::useAccessTokenEntity(TenantAccessToken::class);
+        }
 
         // Every job created anywhere (request, command, scheduler) is stamped with the active tenant.
         $guard = $this->app->make(TenantQueueGuard::class);

@@ -7,6 +7,7 @@ namespace Luminate\Tenancy\Http\Middleware;
 use Closure;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Log;
+use Luminate\Tenancy\Auth\TenantTokenBinding;
 use Luminate\Tenancy\Context\ContextRejected;
 use Luminate\Tenancy\Context\ContextTokenVerifier;
 use Luminate\Tenancy\Context\PlacementResolver;
@@ -23,6 +24,7 @@ final class VerifyTenantContext
         private readonly ContextTokenVerifier $verifier,
         private readonly PlacementResolver $placements,
         private readonly TenantRuntime $runtime,
+        private readonly TenantTokenBinding $binding,
     ) {
     }
 
@@ -40,6 +42,8 @@ final class VerifyTenantContext
                 throw ContextRejected::missing();
             }
             $resolved = $this->placements->resolve($this->verifier->verify($token));
+            // §D.5: the user token must belong to this tenant. Explicit 403, before authentication and before any DB access.
+            $this->binding->assertMatches($request->bearerToken(), $resolved->id());
         } catch (ContextRejected $e) {
             // never log the token itself
             Log::warning('tenant context rejected', [

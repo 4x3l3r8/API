@@ -57,6 +57,16 @@ final class ContextRejected extends \RuntimeException
         return new self('placement_unsupported', 403, 'Tenant placement is not supported by this deployment.');
     }
 
+    public static function tokenTenantMismatch(): self
+    {
+        return new self('token_tenant_mismatch', 403, 'The access token was issued for a different tenant.');
+    }
+
+    public static function tokenUnbound(): self
+    {
+        return new self('token_unbound', 403, 'The access token is not bound to a tenant.');
+    }
+
     public static function misconfigured(): self
     {
         return new self('misconfigured', 503, 'Tenant context verification is not configured.');
