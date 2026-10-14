@@ -11,6 +11,7 @@ use Illuminate\Queue\InteractsWithQueue;
 use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Redis;
+use Illuminate\Support\Facades\Storage;
 use Luminate\Tenancy\Context\CurrentTenant;
 
 /**
@@ -35,7 +36,15 @@ final class ProbeJob implements ShouldQueue
         $row = DB::selectOne("select count(*) as users_visible, coalesce(current_setting('app.tenant_id', true), '') as guc, current_user as db_user from users");
         $store = Cache::store()->getStore();
 
+        // write through the default (S3) and local disks and report where the bytes really went
+        $key = 'luminate-probe/' . $this->label . '.txt';
+        Storage::put($key, $this->label);
+        Storage::disk('local')->put($key, $this->label);
+
         Redis::connection()->rpush(self::RESULT_LIST, json_encode([
+            's3_bucket' => config('filesystems.disks.s3.bucket'),
+            's3_key' => Storage::path($key),
+            'local_path' => Storage::disk('local')->path($key),
             'label' => $this->label,
             'tenant' => app(CurrentTenant::class)->id(),
             'guc' => $row->guc,

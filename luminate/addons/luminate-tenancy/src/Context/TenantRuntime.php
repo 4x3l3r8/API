@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace Luminate\Tenancy\Context;
 
 use Illuminate\Support\Facades\Cache;
+use Illuminate\Support\Facades\Storage;
 
 /**
  * The single place that switches the process to a tenant (HTTP request, provisioning, queue job, scheduler tick).
@@ -12,6 +13,7 @@ use Illuminate\Support\Facades\Cache;
  *
  *  - the cache prefix (fail-safe default UNTENANTED: a namespace no tenant uses, so boot-time reads can never read or
  *    poison a tenant's keys);
+ *  - file storage: S3 bucket + key prefix and local scratch directories, per tenant (see useStorage());
  *  - DB-backed settings (`escolalms/settings`): its provider loads them in boot(), BEFORE any tenant is known, so they must be
  *    re-loaded for the tenant once it is active;
  *  - in long-lived processes (queue workers, CLI loops) the pre-tenant configuration baseline is restored between tenants,
@@ -44,6 +46,7 @@ final class TenantRuntime
 
         $this->current->set($tenant);
         $this->useCachePrefix($tenant->cachePrefix);
+        $this->useStorage($tenant);
         if ($longLivedProcess) {
             $this->forgetInProcessState();
         }
@@ -56,9 +59,42 @@ final class TenantRuntime
 
         $this->current->clear();
         $this->useCachePrefix(self::UNTENANTED);
+        $this->useStorage(null);
         if ($longLivedProcess) {
             $this->restoreBaseline();
+            $this->useStorage(null); // the baseline restore above put the original disk roots back
             $this->forgetInProcessState();
+        }
+    }
+
+    /**
+     * Point every file disk at the tenant's own area (contract §A.1: S3 key prefix derived from placement).
+     *  - s3 disks:    bucket from the placement (already allow-listed) and `root` = the tenant's key prefix;
+     *  - local disks: `<original root>/tenants/<tid>` (Wellms uses them as import/export/SCORM scratch space, including
+     *                 deleteDirectory(), so a shared directory would let one tenant clobber another's files);
+     *  - no tenant:   an `untenanted` area, never the bucket root or the shared directory.
+     * Always derived from the pre-tenant baseline, never from the previous tenant's values, and the cached disk instances are
+     * dropped so the next use rebuilds them.
+     */
+    private function useStorage(?ResolvedTenant $tenant): void
+    {
+        $original = (array) ($this->baselineConfig['filesystems']['disks'] ?? app('config')->get('filesystems.disks', []));
+        $config = app('config');
+
+        foreach ($original as $name => $disk) {
+            $driver = $disk['driver'] ?? null;
+            if ($driver === 's3') {
+                $config->set("filesystems.disks.{$name}.root", $tenant ? $tenant->s3KeyPrefix : self::UNTENANTED);
+                if ($tenant) {
+                    $config->set("filesystems.disks.{$name}.bucket", $tenant->bucket);
+                }
+            } elseif ($driver === 'local') {
+                $root = rtrim((string) ($disk['root'] ?? ''), '/\\');
+                $config->set("filesystems.disks.{$name}.root", $root . DIRECTORY_SEPARATOR . 'tenants' . DIRECTORY_SEPARATOR . ($tenant ? $tenant->id() : self::UNTENANTED));
+            } else {
+                continue;
+            }
+            Storage::forgetDisk($name);
         }
     }
 

@@ -23,6 +23,7 @@ use Luminate\Tenancy\Queue\QueueTenantGate;
 use Luminate\Tenancy\Queue\TenantQueueGuard;
 use Luminate\Tenancy\Replica\TenantReplica;
 use Luminate\Tenancy\Testing\ProbeJobCommand;
+use Luminate\Tenancy\Testing\ProbeStorageCommand;
 
 final class TenancyServiceProvider extends ServiceProvider
 {
@@ -95,6 +96,7 @@ final class TenancyServiceProvider extends ServiceProvider
             $commands = [StatusCommand::class, ProvisionTenantCommand::class];
             if ((bool) $this->app['config']['luminate-tenancy.fixtures']) {
                 $commands[] = ProbeJobCommand::class;
+                $commands[] = ProbeStorageCommand::class;
             }
             $this->commands($commands);
 
