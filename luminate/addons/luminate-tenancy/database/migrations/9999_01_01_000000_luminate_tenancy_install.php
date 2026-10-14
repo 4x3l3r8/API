@@ -24,8 +24,9 @@ return new class extends Migration {
 
         $enrolled = DB::selectOne('select public.luminate_enroll_all() as n')->n;
         $rewritten = DB::select('select * from public.luminate_rewrite_uniques()');
+        $pks = DB::select('select * from public.luminate_rewrite_primary_keys()');
 
-        fwrite(STDOUT, sprintf("luminate/tenancy: %d tables tenant-owned, %d unique keys made composite\n", $enrolled, count($rewritten)));
+        fwrite(STDOUT, sprintf("luminate/tenancy: %d tables tenant-owned, %d unique keys and %d primary keys made composite\n", $enrolled, count($rewritten), count($pks)));
 
         $drift = array_filter(
             DB::select('select kind, object, detail from public.luminate_tenancy_drift()'),

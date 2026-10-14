@@ -8,15 +8,24 @@ use Illuminate\Support\Facades\Cache;
 
 /**
  * The single place that switches the process to a tenant (HTTP request, provisioning, queue job, scheduler tick).
- * Everything tenant-scoped that is NOT the database hangs off this: today the cache prefix; S3 key prefix and queue
- * tagging build on it next.
+ * Everything tenant-scoped that is NOT the database hangs off this:
  *
- * Fail-safe default: with no tenant the cache prefix is UNTENANTED, a namespace no tenant ever uses, so boot-time reads
- * (e.g. `escolalms/settings` loading config in provider boot()) can never read or poison a tenant's keys.
+ *  - the cache prefix (fail-safe default UNTENANTED: a namespace no tenant uses, so boot-time reads can never read or
+ *    poison a tenant's keys);
+ *  - DB-backed settings (`escolalms/settings`): its provider loads them in boot(), BEFORE any tenant is known, so they must be
+ *    re-loaded for the tenant once it is active;
+ *  - in long-lived processes (queue workers, CLI loops) the pre-tenant configuration baseline is restored between tenants,
+ *    so one tenant's settings can never leak into the next job.
+ *
+ * Octane/Swoole-style runtimes that share a process between requests are unsupported.
  */
 final class TenantRuntime
 {
     public const UNTENANTED = 'untenanted';
+    private const SETTINGS_CONTRACT = 'EscolaLms\\Settings\\Services\\Contracts\\AdministrableConfigServiceContract';
+
+    /** @var array<string,mixed>|null configuration as it was after boot, before any tenant was applied */
+    private ?array $baselineConfig = null;
 
     public function __construct(private readonly CurrentTenant $current)
     {
@@ -28,18 +37,27 @@ final class TenantRuntime
      */
     public function activate(ResolvedTenant $tenant, bool $longLivedProcess = false): void
     {
+        $this->captureBaseline();
+        if ($longLivedProcess) {
+            $this->restoreBaseline();
+        }
+
         $this->current->set($tenant);
         $this->useCachePrefix($tenant->cachePrefix);
         if ($longLivedProcess) {
             $this->forgetInProcessState();
         }
+        $this->loadTenantSettings();
     }
 
     public function deactivate(bool $longLivedProcess = false): void
     {
+        $this->captureBaseline();
+
         $this->current->clear();
         $this->useCachePrefix(self::UNTENANTED);
         if ($longLivedProcess) {
+            $this->restoreBaseline();
             $this->forgetInProcessState();
         }
     }
@@ -52,6 +70,36 @@ final class TenantRuntime
             $store->setPrefix($prefix);
         } else {
             throw new \RuntimeException('Cache store ' . $store::class . ' cannot be given a per-tenant prefix; use the redis store.');
+        }
+    }
+
+    private function captureBaseline(): void
+    {
+        // first call in a process happens before any tenant has been applied (the middleware and the worker hooks call
+        // deactivate() first), so this is the untenanted post-boot configuration
+        $this->baselineConfig ??= app('config')->all();
+    }
+
+    private function restoreBaseline(): void
+    {
+        if ($this->baselineConfig !== null) {
+            app('config')->set($this->baselineConfig);
+        }
+    }
+
+    /**
+     * Load this tenant's DB-backed settings (per-tenant cache first, then the tenant's own `config` row). Deliberately NOT
+     * wrapped in a try/catch: if a tenant's settings cannot be read, fail the request/job rather than silently serve defaults
+     * that may be more permissive than what the tenant configured (registration, account approval, token lifetime, ...).
+     */
+    private function loadTenantSettings(): void
+    {
+        if (!interface_exists(self::SETTINGS_CONTRACT) || !app()->bound(self::SETTINGS_CONTRACT)) {
+            return;
+        }
+        $settings = app(self::SETTINGS_CONTRACT);
+        if (!$settings->loadConfigFromCache()) {
+            $settings->loadConfigFromDatabase();
         }
     }
 

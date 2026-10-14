@@ -86,6 +86,83 @@ begin
 end
 $$;
 
+-- A primary key the APPLICATION chooses (not a sequence/identity), made of integer columns that are not themselves foreign
+-- keys. Two tenants can legitimately both choose the same value (e.g. Wellms' `config` table always uses id = 1), so a global
+-- PK would make the second tenant's insert fail. Pivot tables (every PK column is a foreign key) derive their values from
+-- tenant-owned parents and are not affected.
+create or replace function public.luminate_is_app_assigned_pk(pk oid) returns boolean
+language sql stable as
+$$
+    select not exists (
+               select 1
+               from pg_constraint con
+               join pg_attribute a on a.attrelid = con.conrelid and a.attnum = any (con.conkey)
+               left join pg_attrdef d on d.adrelid = a.attrelid and d.adnum = a.attnum
+               where con.oid = pk
+                 and (pg_get_expr(d.adbin, d.adrelid) like 'nextval%' or a.attidentity <> '' or a.attgenerated <> ''))
+       and not exists (
+               select 1
+               from pg_constraint con
+               join pg_attribute a on a.attrelid = con.conrelid and a.attnum = any (con.conkey)
+               where con.oid = pk and a.atttypid not in ('int2'::regtype, 'int4'::regtype, 'int8'::regtype))
+       and not coalesce((
+               select bool_and(exists (select 1 from pg_constraint f
+                                       where f.conrelid = con.conrelid and f.contype = 'f' and a.attnum = any (f.conkey)))
+               from pg_constraint con
+               join pg_attribute a on a.attrelid = con.conrelid and a.attnum = any (con.conkey)
+               where con.oid = pk), false)
+$$;
+
+create or replace function public.luminate_audit_pk(rel regclass) returns void
+language plpgsql as
+$$
+declare
+    t text := (select relname from pg_class where oid = rel);
+begin
+    if public.luminate_is_exempt(t) then
+        return;
+    end if;
+    insert into public.luminate_tenancy_audit (kind, object, detail)
+    select 'app_pk_without_tenant', rel::text, pg_get_constraintdef(con.oid)
+    from pg_constraint con
+    where con.conrelid = rel and con.contype = 'p'
+      and public.luminate_is_app_assigned_pk(con.oid)
+      and con.conkey[1] is distinct from (select a.attnum from pg_attribute a where a.attrelid = rel and a.attname = 'tenant_id' and not a.attisdropped)
+      and not exists (select 1 from public.luminate_tenancy_audit x where x.kind = 'app_pk_without_tenant' and x.object = rel::text);
+end
+$$;
+
+-- Rewrite every application-assigned PK on a tenant-owned table to (tenant_id, <original columns>).
+create or replace function public.luminate_rewrite_primary_keys() returns setof text
+language plpgsql as
+$$
+declare
+    r    record;
+    ndef text;
+begin
+    for r in
+        select con.conrelid::regclass as rel, con.conname, pg_get_constraintdef(con.oid) as def
+        from pg_constraint con
+        join pg_class c on c.oid = con.conrelid
+        join pg_namespace ns on ns.oid = c.relnamespace
+        where ns.nspname = 'public' and con.contype = 'p' and c.relkind = 'r'
+          and not public.luminate_is_exempt(c.relname)
+          and exists (select 1 from pg_attribute a where a.attrelid = con.conrelid and a.attname = 'tenant_id' and not a.attisdropped)
+          and con.conkey[1] is distinct from (select a.attnum from pg_attribute a where a.attrelid = con.conrelid and a.attname = 'tenant_id' and not a.attisdropped)
+          and public.luminate_is_app_assigned_pk(con.oid)
+        order by c.relname
+    loop
+        ndef := regexp_replace(r.def, 'PRIMARY KEY \(', 'PRIMARY KEY (tenant_id, ');
+        -- fails loudly if rows without a tenant exist: they would be invisible orphans and must be dealt with first
+        execute format('alter table %s alter column tenant_id set not null', r.rel);
+        execute format('alter table %s drop constraint %I', r.rel, r.conname);
+        execute format('alter table %s add constraint %I %s', r.rel, r.conname, ndef);
+        insert into public.luminate_tenancy_audit (kind, object, detail) values ('pk_rewritten', r.conname, r.def || '  ->  ' || ndef);
+        return next r.rel::text || ' ' || r.conname || ': ' || r.def || ' -> ' || ndef;
+    end loop;
+end
+$$;
+
 create or replace function public.luminate_enroll_all() returns integer
 language plpgsql as
 $$
@@ -195,6 +272,18 @@ begin
     loop
         kind := 'unique_without_tenant'; object := r.relname || '.' || r.idxname; detail := r.def; return next;
     end loop;
+
+    for r in
+        select c.relname, pg_get_constraintdef(con.oid) as def
+        from pg_constraint con
+        join pg_class c on c.oid = con.conrelid
+        join pg_namespace ns on ns.oid = c.relnamespace
+        where ns.nspname = 'public' and con.contype = 'p' and c.relkind = 'r' and not public.luminate_is_exempt(c.relname)
+          and public.luminate_is_app_assigned_pk(con.oid)
+          and con.conkey[1] is distinct from (select a.attnum from pg_attribute a where a.attrelid = con.conrelid and a.attname = 'tenant_id' and not a.attisdropped)
+    loop
+        kind := 'app_pk_without_tenant'; object := r.relname; detail := r.def; return next;
+    end loop;
 end
 $$;
 
@@ -229,6 +318,7 @@ begin
             end if;
         end if;
         perform public.luminate_audit_unique(rel);
+        perform public.luminate_audit_pk(rel);
     end loop;
 end
 $$;

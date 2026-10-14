@@ -10,6 +10,10 @@
       "status": "active",
       "placement": { "mode": "pooled", "connection": "shard-1", "bucket": "wellms", "cache_prefix": "t-beta" }
     },
+    "t-delta": {
+      "status": "active",
+      "placement": { "mode": "pooled", "connection": "shard-1", "bucket": "wellms", "cache_prefix": "t-delta" }
+    },
     "t-gamma": {
       "status": "suspended",
       "placement": { "mode": "pooled", "connection": "shard-1", "bucket": "wellms", "cache_prefix": "t-gamma" }

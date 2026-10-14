@@ -42,6 +42,8 @@ final class ProbeJob implements ShouldQueue
             'users_visible' => (int) $row->users_visible,
             'db_user' => $row->db_user,
             'cache_prefix' => method_exists($store, 'getPrefix') ? $store->getPrefix() : null,
+            // a DB-backed, admin-editable Wellms setting: proves per-tenant settings do not carry over between jobs
+            'return_url' => config('escola_auth.return_url'),
             'pid' => getmypid(),
         ]));
     }
