@@ -149,7 +149,8 @@ check("no job was destroyed by a Redis pop-script error (malformed payload)", lu
 
 stuck = redis("llen", QUEUE)
 reserved = redis("zcard", QUEUE + ":reserved")
-delayed = redis("zcard", QUEUE + ":delayed")
+# only the harness's OWN jobs: other legitimate delayed work (e.g. a quiz timer) may share the queue and is not a refused job
+delayed = str(sum(1 for m in redis("zrange", QUEUE + ":delayed", "0", "-1").splitlines() if m.startswith("{") and "ProbeJob" in json.loads(m).get("displayName", "")))
 check("no refused job is left in the queue (not reserved, not retrying)", stuck == "0" and reserved == "0" and delayed == "0",
       f"pending={stuck} reserved={reserved} delayed={delayed}")
 

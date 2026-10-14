@@ -3,12 +3,37 @@
 #   - the isolation-suite fixtures (probe job and its dispatch command) are registered.
 # bootstrap.ps1 sets COMPOSE_FILE in .env so a plain `docker compose up` includes this file locally.
 # The production-like stack is: docker compose -f docker-compose.yml up -d
+x-dev-webhooks: &dev-webhooks
+  # Points Wellms at the test receiver below. Short retry timings so the end-to-end test can watch retry and dead-lettering in
+  # seconds; production uses the contract schedule (60,300,1800,7200,21600 / 86400). http is allowed for this internal hop only.
+  LUMINATE_WEBHOOK_URL: http://webhook-receiver:8099/hook
+  LUMINATE_WEBHOOK_ALLOW_HTTP: "true"
+  LUMINATE_WEBHOOK_BACKOFF: "3,5,8,10"
+  LUMINATE_WEBHOOK_MAX_AGE: "40"
+
 services:
   api:
     environment:
+      <<: *dev-webhooks
       LUMINATE_TENANCY_EXEMPT_PATHS: api/documentation,api/documentation/*,docs,docs/*,api/oauth2-callback
       LUMINATE_TENANCY_TEST_FIXTURES: "true"
+  worker:
+    environment:
+      <<: *dev-webhooks
   scheduler:
     environment:
+      <<: *dev-webhooks
       # registers the scheduled probe events the isolation suite checks (one closure, one child-process command)
       LUMINATE_TENANCY_TEST_FIXTURES: "true"
+  webhook-receiver:
+    # Stand-in for Luminate's receiver: verifies the signature, dedups, records, and can be told to fail. Dev only.
+    image: python:3.12-alpine@sha256:1b668429b3511ab407d8e00648891631b0b1a4d7e15e3ca70f38ab5b91ad4ab4
+    command: ["python", "-u", "/app/webhook_receiver.py"]
+    environment:
+      LUMINATE_WEBHOOK_SECRET: ${LUMINATE_WEBHOOK_SECRET:?run bootstrap.ps1}
+      LUMINATE_WEBHOOK_SECRET_PREVIOUS: ${LUMINATE_WEBHOOK_SECRET_PREVIOUS:-}
+    volumes:
+      - ../tests/support/webhook_receiver.py:/app/webhook_receiver.py:ro
+    ports:
+      - "127.0.0.1:8099:8099"
+    restart: unless-stopped

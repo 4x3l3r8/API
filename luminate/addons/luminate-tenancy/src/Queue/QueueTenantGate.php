@@ -16,13 +16,23 @@ use Luminate\Tenancy\Replica\TenantReplica;
  */
 final class QueueTenantGate
 {
-    public function __construct(private readonly QueueTagger $tagger, private readonly TenantReplica $replica)
-    {
+    /** @param list<string> $deniedJobs job classes that must never run on this deployment, whatever tenant or tag they carry */
+    public function __construct(
+        private readonly QueueTagger $tagger,
+        private readonly TenantReplica $replica,
+        private readonly array $deniedJobs = [],
+    ) {
     }
 
     /** @param array<string,mixed> $payload */
     public function admit(array $payload): Admission
     {
+        foreach ([$payload['displayName'] ?? null, $payload['data']['commandName'] ?? null] as $name) {
+            if (is_string($name) && in_array($name, $this->deniedJobs, true)) {
+                return Admission::refuse(TagRejected::jobDenied($name));
+            }
+        }
+
         try {
             $tid = $this->tagger->verify($payload);
 

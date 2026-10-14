@@ -54,6 +54,16 @@ x-wellms-env: &wellms-env
   LUMINATE_TENANCY_FORBIDDEN_DB_USERS: ${DB_OWNER_USER:-wellms_owner},${DB_BOOTSTRAP_USER:-db_bootstrap}
   LUMINATE_TENANCY_CONNECTIONS: ${LUMINATE_TENANCY_CONNECTIONS:-shard-1=pgsql}
   LUMINATE_TENANCY_BUCKETS: ${S3_BUCKET:-wellms}
+  # Signed webhooks to the Luminate receiver (contract v4 §F). Off until LUMINATE_WEBHOOK_URL is set; the secret is always
+  # required so a URL can never be configured without one. https only, unless docker-compose.dev.yml allows http for the test receiver.
+  LUMINATE_WEBHOOK_URL: ${LUMINATE_WEBHOOK_URL:-}
+  LUMINATE_WEBHOOK_SECRET: ${LUMINATE_WEBHOOK_SECRET:?run bootstrap.ps1}
+  LUMINATE_WEBHOOK_ALLOW_HTTP: ${LUMINATE_WEBHOOK_ALLOW_HTTP:-false}
+  LUMINATE_WEBHOOK_BACKOFF: ${LUMINATE_WEBHOOK_BACKOFF:-60,300,1800,7200,21600}
+  LUMINATE_WEBHOOK_MAX_AGE: ${LUMINATE_WEBHOOK_MAX_AGE:-86400}
+  # Wellms must never autonomously move money (contract §H): its commerce schedule and renewal jobs are off by default
+  # (LUMINATE_DISABLED_SCHEDULES / LUMINATE_DENIED_JOBS in the add-on config). failed_jobs is pruned after this many hours.
+  LUMINATE_FAILED_JOBS_RETENTION_HOURS: ${LUMINATE_FAILED_JOBS_RETENTION_HOURS:-336}
 
 services:
   postgres:

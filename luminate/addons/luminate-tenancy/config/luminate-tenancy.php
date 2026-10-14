@@ -40,6 +40,41 @@ return [
     // superuser). The process refuses to run tenant work if its configured DB user is in this list.
     'forbidden_db_users' => $list(env('LUMINATE_TENANCY_FORBIDDEN_DB_USERS', '')),
 
+    // Job classes that must never run on this deployment, whatever tenant or tag they carry (checked by the queue guard before
+    // anything else). Contract §H: Wellms never autonomously moves money. Luminate/PortalAcademy own commerce.
+    'denied_jobs' => $list(env('LUMINATE_DENIED_JOBS', 'EscolaLms\Cart\Jobs\RenewRecursiveProduct,EscolaLms\Cart\Jobs\RenewRecursiveProductUser')),
+
+    // Scheduled events switched off (skip) after the schedule is built: a job name, or an artisan command. Defaults are
+    // Wellms' commerce automation. Set the env var to a different list to override; there is no "enable all" shortcut.
+    'disabled_schedules' => $list(env('LUMINATE_DISABLED_SCHEDULES', 'EscolaLms\Cart\Jobs\RenewRecursiveProduct,EscolaLms\Cart\Jobs\ExpireRecursiveProduct,cart:abandoned-event')),
+
+    // failed_jobs is global (un-tenanted) and holds serialized tenant data: delete rows older than this (hours). 0 disables.
+    'failed_jobs_retention_hours' => (int) env('LUMINATE_FAILED_JOBS_RETENTION_HOURS', 336),
+
+    // Signed webhooks to the Luminate receiver (contract §F). Off until a URL is set; with a URL it also needs a secret.
+    'webhooks' => [
+        'url' => env('LUMINATE_WEBHOOK_URL'),
+        'secret' => env('LUMINATE_WEBHOOK_SECRET'),
+        'allow_http' => filter_var(env('LUMINATE_WEBHOOK_ALLOW_HTTP', false), FILTER_VALIDATE_BOOLEAN), // dev only
+        'timeout' => (int) env('LUMINATE_WEBHOOK_TIMEOUT', 10),
+        'connect_timeout' => (int) env('LUMINATE_WEBHOOK_CONNECT_TIMEOUT', 5),
+        // seconds to wait after the 1st, 2nd, ... failure (the last repeats): +1m, +5m, +30m, +2h, +6h
+        'backoff' => array_map('intval', $list(env('LUMINATE_WEBHOOK_BACKOFF', '60,300,1800,7200,21600'))),
+        'max_age' => (int) env('LUMINATE_WEBHOOK_MAX_AGE', 86400), // give up (dead-letter) beyond this age
+        'lease' => (int) env('LUMINATE_WEBHOOK_LEASE', 120),       // a claimed attempt that never reports back is retried after this
+        'retention_days' => (int) env('LUMINATE_WEBHOOK_RETENTION_DAYS', 14),
+        'dead_retention_days' => (int) env('LUMINATE_WEBHOOK_DEAD_RETENTION_DAYS', 90),
+        // Wellms event class => contract §F event name
+        'events' => [
+            \EscolaLms\Courses\Events\CourseAssigned::class => 'enrolment.created',
+            \EscolaLms\Courses\Events\CourseUnassigned::class => 'enrolment.removed',
+            \EscolaLms\Courses\Events\TopicFinished::class => 'topic.completed',
+            \EscolaLms\Courses\Events\CourseFinished::class => 'course.completed',
+            \EscolaLms\TopicTypeGift\Events\QuizAttemptFinishedEvent::class => 'quiz.attempt.finished',
+            \EscolaLms\TopicTypeGift\Events\QuizAttemptJournalGradeReadyEvent::class => 'quiz.grade.ready',
+        ],
+    ],
+
     // Test fixtures (probe job + dispatch command used by the isolation suite). MUST be false outside dev/test.
     'fixtures' => filter_var(env('LUMINATE_TENANCY_TEST_FIXTURES', false), FILTER_VALIDATE_BOOLEAN),
 

@@ -62,7 +62,9 @@ def prodlike_server(name, port, extra_env=()):
     env_args = sum([["-e", e] for e in extra_env], [])
     rc, out, err = sh(BASE_ONLY + ["run", "-d", "--no-deps", "--name", name, "-p", f"127.0.0.1:{port}:{port}", *env_args, "api", "sh", "-c", script])
     for _ in range(60):
-        if get(f"http://127.0.0.1:{port}/docs")[0] != 0:
+        # an HTTP answer only counts if it came from OUR container: something else may already own the port (it did once)
+        running = sh(["docker", "inspect", "-f", "{{.State.Running}}", name])[1].strip() == "true"
+        if running and get(f"http://127.0.0.1:{port}/docs")[0] != 0:
             return True
         time.sleep(1)
     print("server did not start:", err or out)
@@ -90,7 +92,7 @@ check("no other service is configured with the owner role", not others, str(othe
 
 # ======================================================================================================================
 print("--- B2. A production-like API over real HTTP")
-PORT = 8099
+PORT = 8097  # not 8099: the dev webhook receiver publishes that one
 try:
     up = prodlike_server("luminate-prodcheck", PORT)
     check("the production-like server starts", up)

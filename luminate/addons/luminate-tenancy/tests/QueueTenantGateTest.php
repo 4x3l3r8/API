@@ -130,4 +130,40 @@ final class QueueTenantGateTest extends TestCase
         $this->assertRefused($this->tagged('t-alpha'), 'tenant_inactive', $gate);
         $this->assertTrue($gate->admit($this->tagged('t-beta'))->admitted());
     }
+
+    private function denyingGate(): QueueTenantGate
+    {
+        return new QueueTenantGate(
+            new QueueTagger([TokenFactory::KEY]),
+            new TenantReplica($this->file, new PlacementResolver(['shard-1' => 'pgsql'], ['wellms'])),
+            ['EscolaLms\Cart\Jobs\RenewRecursiveProduct', 'EscolaLms\Cart\Jobs\RenewRecursiveProductUser']
+        );
+    }
+
+    public function testADeniedJobClassIsRefusedEvenWhenValidlyTaggedForAnActiveTenant(): void
+    {
+        foreach (['EscolaLms\Cart\Jobs\RenewRecursiveProduct', 'EscolaLms\Cart\Jobs\RenewRecursiveProductUser'] as $class) {
+            $payload = $this->tagged('t-alpha') + ['displayName' => $class, 'data' => ['commandName' => $class]];
+            $this->assertRefused($payload, 'job_denied', $this->denyingGate());
+        }
+    }
+
+    public function testADeniedJobIsMatchedByEitherNameFieldAndExactly(): void
+    {
+        $gate = $this->denyingGate();
+        $this->assertRefused($this->tagged('t-alpha') + ['displayName' => 'x', 'data' => ['commandName' => 'EscolaLms\Cart\Jobs\RenewRecursiveProductUser']], 'job_denied', $gate);
+        // a different class that merely shares a prefix is not denied
+        $ok = $gate->admit($this->tagged('t-alpha') + ['displayName' => 'EscolaLms\Cart\Jobs\RenewRecursiveProductUserExtra']);
+        $this->assertTrue($ok->admitted());
+    }
+
+    public function testADeniedJobIsRefusedBeforeTheTagIsEvenLookedAt(): void
+    {
+        $this->assertRefused(['displayName' => 'EscolaLms\Cart\Jobs\RenewRecursiveProduct'], 'job_denied', $this->denyingGate());
+    }
+
+    public function testNothingIsDeniedByDefault(): void
+    {
+        $this->assertTrue($this->gate()->admit($this->tagged('t-alpha') + ['displayName' => 'EscolaLms\Cart\Jobs\RenewRecursiveProduct'])->admitted());
+    }
 }

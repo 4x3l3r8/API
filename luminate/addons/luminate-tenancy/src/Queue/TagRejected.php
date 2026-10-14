@@ -43,6 +43,11 @@ final class TagRejected extends \RuntimeException
         return new self('tenant_inactive', "Job is tagged for tenant '{$tid}' whose status is '{$status}'; not running it. Retry with queue:retry once the tenant is active.");
     }
 
+    public static function jobDenied(string $name): self
+    {
+        return new self('job_denied', "Job class '{$name}' is denied on this deployment (Luminate owns commerce); it will not run for any tenant.");
+    }
+
     public static function replicaUnavailable(string $detail): self
     {
         return new self('replica_unavailable', 'Tenant replica unavailable: ' . $detail);

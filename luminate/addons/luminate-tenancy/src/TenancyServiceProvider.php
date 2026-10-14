@@ -11,7 +11,21 @@ use Illuminate\Support\ServiceProvider;
 use Laravel\Passport\Passport;
 use Luminate\Tenancy\Auth\TenantAccessToken;
 use Luminate\Tenancy\Auth\TenantTokenBinding;
+use Luminate\Tenancy\Console\MaintenanceCommand;
 use Luminate\Tenancy\Console\ProvisionTenantCommand;
+use Luminate\Tenancy\Http\Middleware\AddFullyGraded;
+use Luminate\Tenancy\Scheduling\ScheduleGuard;
+use Luminate\Tenancy\Webhooks\Backoff;
+use Luminate\Tenancy\Webhooks\Console\DispatchDueWebhooksCommand;
+use Luminate\Tenancy\Webhooks\Console\PruneWebhooksCommand;
+use Luminate\Tenancy\Webhooks\DatabaseDeliveryStore;
+use Luminate\Tenancy\Webhooks\DeliveryService;
+use Luminate\Tenancy\Webhooks\DeliveryStore;
+use Luminate\Tenancy\Webhooks\EventMapper;
+use Luminate\Tenancy\Webhooks\GuzzleSender;
+use Luminate\Tenancy\Webhooks\RecordWebhookEvent;
+use Luminate\Tenancy\Webhooks\Sender;
+use Luminate\Tenancy\Webhooks\WebhookSettings;
 use Luminate\Tenancy\Console\StatusCommand;
 use Luminate\Tenancy\Context\ContextTokenVerifier;
 use Luminate\Tenancy\Context\CurrentTenant;
@@ -66,7 +80,30 @@ final class TenancyServiceProvider extends ServiceProvider
         ));
 
         $this->app->singleton(QueueTagger::class, fn ($app) => new QueueTagger($this->signingKeys($app['config']['luminate-tenancy'])));
-        $this->app->singleton(QueueTenantGate::class, fn ($app) => new QueueTenantGate($app->make(QueueTagger::class), $app->make(TenantReplica::class)));
+        $this->app->singleton(QueueTenantGate::class, fn ($app) => new QueueTenantGate(
+            $app->make(QueueTagger::class),
+            $app->make(TenantReplica::class),
+            (array) $app['config']['luminate-tenancy.denied_jobs']
+        ));
+
+        // Signed webhooks (contract §F). The outbox row is authoritative; queue jobs and the sweeper only move it along.
+        $this->app->singleton(WebhookSettings::class, fn ($app) => WebhookSettings::fromConfig((array) $app['config']['luminate-tenancy.webhooks']));
+        $this->app->singleton(EventMapper::class, fn ($app) => new EventMapper((array) $app['config']['luminate-tenancy.webhooks.events']));
+        $this->app->singleton(DeliveryStore::class, DatabaseDeliveryStore::class);
+        $this->app->singleton(Sender::class, GuzzleSender::class);
+        $this->app->singleton(Backoff::class, fn ($app) => new Backoff(
+            array_values((array) $app['config']['luminate-tenancy.webhooks.backoff']),
+            (int) $app['config']['luminate-tenancy.webhooks.max_age']
+        ));
+        $this->app->singleton(DeliveryService::class, fn ($app) => new DeliveryService(
+            $app->make(DeliveryStore::class),
+            $app->make(Sender::class),
+            $app->make(WebhookSettings::class),
+            $app->make(Backoff::class),
+            static fn (): int => time(),
+            (int) $app['config']['luminate-tenancy.webhooks.lease']
+        ));
+        $this->app->singleton(RecordWebhookEvent::class);
         $this->app->singleton(TenantQueueGuard::class);
 
         $this->app->singleton(AppRoleGuard::class, function ($app) {
@@ -102,11 +139,19 @@ final class TenancyServiceProvider extends ServiceProvider
         $guard = $this->app->make(TenantQueueGuard::class);
         $guard->registerPayloadHook();
 
+        // Wellms domain events -> webhook outbox. Synchronous listeners (see RecordWebhookEvent); a no-op until a receiver is configured.
+        foreach (array_keys((array) $this->app['config']['luminate-tenancy.webhooks.events']) as $eventClass) {
+            $this->app['events']->listen($eventClass, [RecordWebhookEvent::class, 'handle']);
+        }
+
         if ($this->app->runningInConsole()) {
             // Workers have no signed request: they verify the job's tag and read status/placement from the local replica (§A.2).
             $guard->registerWorkerHooks($this->app['events'], $this->app['queue']);
 
-            $commands = [StatusCommand::class, ProvisionTenantCommand::class, ScheduleWorkCommand::class];
+            $commands = [
+                StatusCommand::class, ProvisionTenantCommand::class, ScheduleWorkCommand::class, MaintenanceCommand::class,
+                DispatchDueWebhooksCommand::class, PruneWebhooksCommand::class,
+            ];
             if ((bool) $this->app['config']['luminate-tenancy.fixtures']) {
                 $commands[] = ProbeJobCommand::class;
                 $commands[] = ProbeStorageCommand::class;
@@ -120,6 +165,23 @@ final class TenancyServiceProvider extends ServiceProvider
             }
             $this->commands($commands);
 
+            // Self-healing delivery + retention, run for each ACTIVE tenant by the per-tenant scheduler.
+            $this->callAfterResolving(Schedule::class, function (Schedule $schedule): void {
+                if ($this->app->make(WebhookSettings::class)->enabled()) {
+                    $schedule->command('luminate:webhooks:dispatch-due')->everyMinute();
+                    $schedule->command('luminate:webhooks:prune')->dailyAt('03:17');
+                }
+            });
+
+            // Contract §H: Wellms never autonomously moves money. Runs AFTER the framework has built the schedule (package
+            // providers and app/Console/Kernel.php), so every event exists to be skipped. See ScheduleGuard.
+            $this->app->booted(function (): void {
+                $patterns = array_values((array) $this->app['config']['luminate-tenancy.disabled_schedules']);
+                if ($patterns !== []) {
+                    (new ScheduleGuard())->disable($this->app->make(Schedule::class), $patterns);
+                }
+            });
+
             // LUMINATE_TENANT=<tid> makes ANY artisan command start as that tenant (scheduled command() events are child
             // processes and inherit it). Fail closed: an unknown or non-active tenant aborts the command.
             $this->app->booted(fn () => $this->activateTenantFromEnvironment());
@@ -127,7 +189,9 @@ final class TenancyServiceProvider extends ServiceProvider
             return;
         }
 
-        $this->app->make(HttpKernel::class)->prependMiddleware(VerifyTenantContext::class);
+        $kernel = $this->app->make(HttpKernel::class);
+        $kernel->prependMiddleware(VerifyTenantContext::class);
+        $kernel->pushMiddleware(AddFullyGraded::class); // contract v5 §F: is_fully_graded on the attempts list/detail
     }
 
     private function activateTenantFromEnvironment(): void

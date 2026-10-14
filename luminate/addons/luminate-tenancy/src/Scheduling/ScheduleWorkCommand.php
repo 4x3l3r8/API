@@ -38,12 +38,35 @@ final class ScheduleWorkCommand extends Command
     {
         while (true) {
             $exit = $this->tick();
+            $this->maintain();
             @touch((string) $this->option('heartbeat'));
 
             if ($this->option('once')) {
                 return $exit;
             }
             sleep(max(1, 60 - (int) date('s'))); // next minute boundary
+        }
+    }
+
+    private ?int $lastMaintenance = null;
+
+    /**
+     * Global housekeeping (failed_jobs retention), once an hour and always on --once. It runs OUTSIDE any tenant on purpose: the
+     * table it prunes is global. A failure here never fails the tick: tenants' scheduled work must not depend on it.
+     */
+    private function maintain(): void
+    {
+        $now = time();
+        if (!$this->option('once') && $this->lastMaintenance !== null && $now - $this->lastMaintenance < 3600) {
+            return;
+        }
+        $this->lastMaintenance = $now;
+
+        $process = new Process([PHP_BINARY, base_path('artisan'), 'luminate:maintenance', '--no-interaction'], base_path(), ['LUMINATE_TENANT' => false], null, 120);
+        $process->run();
+        $this->line(trim($process->getOutput()) ?: json_encode(['event' => 'maintenance.no_output']));
+        if (!$process->isSuccessful()) {
+            Log::error('scheduler: luminate:maintenance failed', ['output' => substr($process->getErrorOutput() . $process->getOutput(), -1500)]);
         }
     }
 
