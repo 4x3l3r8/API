@@ -11,10 +11,17 @@ x-dev-webhooks: &dev-webhooks
   LUMINATE_WEBHOOK_BACKOFF: "3,5,8,10"
   LUMINATE_WEBHOOK_MAX_AGE: "40"
 
+x-dev-registry: &dev-registry
+  # The reconcile pull (contract §A.2) is aimed at the stub below, which serves the dev snapshot until a test says otherwise. A short
+  # interval so a tick picks changes up quickly; production uses the 300 s default and https.
+  LUMINATE_REGISTRY_PULL_URL: http://registry-stub:8098/registry/tenants
+  LUMINATE_REGISTRY_ALLOW_HTTP: "true"
+  LUMINATE_REGISTRY_RECONCILE_INTERVAL: "60"
+
 services:
   api:
     environment:
-      <<: *dev-webhooks
+      <<: [*dev-webhooks, *dev-registry]
       LUMINATE_TENANCY_EXEMPT_PATHS: api/documentation,api/documentation/*,docs,docs/*,api/oauth2-callback
       LUMINATE_TENANCY_TEST_FIXTURES: "true"
   worker:
@@ -22,7 +29,7 @@ services:
       <<: *dev-webhooks
   scheduler:
     environment:
-      <<: *dev-webhooks
+      <<: [*dev-webhooks, *dev-registry]
       # registers the scheduled probe events the isolation suite checks (one closure, one child-process command)
       LUMINATE_TENANCY_TEST_FIXTURES: "true"
   webhook-receiver:
@@ -36,4 +43,18 @@ services:
       - ../tests/support/webhook_receiver.py:/app/webhook_receiver.py:ro
     ports:
       - "127.0.0.1:8099:8099"
+    restart: unless-stopped
+  registry-stub:
+    # Stand-in for Luminate's tenant-registry endpoint (the reconcile pull). Verifies the signed request, signs its response, and
+    # can be told to misbehave. Starts as the dev snapshot. Dev only.
+    image: python:3.12-alpine@sha256:1b668429b3511ab407d8e00648891631b0b1a4d7e15e3ca70f38ab5b91ad4ab4
+    command: ["python", "-u", "/app/registry_stub.py"]
+    environment:
+      LUMINATE_REGISTRY_KEY: ${LUMINATE_REGISTRY_KEY:?run bootstrap.ps1}
+      LUMINATE_REGISTRY_KEY_PREVIOUS: ${LUMINATE_REGISTRY_KEY_PREVIOUS:-}
+    volumes:
+      - ../tests/support/registry_stub.py:/app/registry_stub.py:ro
+      - ./tenants.snapshot.json:/etc/luminate/tenants.json:ro
+    ports:
+      - "127.0.0.1:8098:8098"
     restart: unless-stopped

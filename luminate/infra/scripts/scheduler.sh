@@ -1,6 +1,6 @@
 #!/bin/sh
 # Per-tenant scheduler: replaces Wellms' stock tenant-less `schedule:run` loop (which is disabled in the worker).
-# Runs as the RLS-bound APP role. Tenants come from the local replica snapshot, not from a static list.
+# Runs as the RLS-bound APP role. Tenants come from the registry replica (push + reconcile), not from a static list.
 set -eu
 cd /var/www/html
 

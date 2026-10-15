@@ -7,6 +7,8 @@ namespace Luminate\Tenancy\Scheduling;
 use Illuminate\Console\Command;
 use Illuminate\Support\Facades\Log;
 use Luminate\Tenancy\Context\PlacementResolver;
+use Luminate\Tenancy\Registry\RegistryStore;
+use Luminate\Tenancy\Replica\ReplicaSource;
 use Luminate\Tenancy\Replica\TenantReplica;
 use Symfony\Component\Process\Exception\ProcessTimedOutException;
 use Symfony\Component\Process\Process;
@@ -70,10 +72,62 @@ final class ScheduleWorkCommand extends Command
         }
     }
 
+    private ?int $lastReconcile = null;
+
+    /** The reconciliation pull (contract A.2): safety net behind push. A child process, no tenant, never fails the tick. */
+    private function reconcileIfDue(): void
+    {
+        if ((string) config('luminate-tenancy.registry.pull_url') === '' || config('luminate-tenancy.replica_driver') !== 'database') {
+            return;
+        }
+        $now = time();
+        $interval = max(10, (int) config('luminate-tenancy.registry.reconcile_interval'));
+        if (!$this->option('once') && $this->lastReconcile !== null && $now - $this->lastReconcile < $interval) {
+            return;
+        }
+        $this->lastReconcile = $now;
+
+        $process = new Process([PHP_BINARY, base_path('artisan'), 'luminate:registry:reconcile', '--no-interaction'], base_path(), ['LUMINATE_TENANT' => false], null, 60);
+        $process->run();
+        $this->line(trim($process->getOutput()) ?: json_encode(['event' => 'registry.reconcile.no_output']));
+        if (!$process->isSuccessful()) {
+            Log::error('scheduler: registry reconcile failed', ['output' => substr($process->getErrorOutput() . $process->getOutput(), -1500)]);
+        }
+    }
+
+    /** "Add a tenant = a row": a tenant that appears in the registry gets its baseline data within a tick, with no operator step. */
+    private function provisionPending(): void
+    {
+        if (config('luminate-tenancy.replica_driver') !== 'database') {
+            return;
+        }
+        try {
+            $pending = app(RegistryStore::class)->pendingProvision();
+        } catch (\Throwable $e) {
+            Log::error('scheduler: could not read the registry for pending provisioning: ' . $e->getMessage());
+
+            return;
+        }
+        foreach ($pending as $tid) {
+            $process = new Process([PHP_BINARY, base_path('artisan'), 'luminate:tenant:provision', $tid, '--no-interaction'], base_path(), ['LUMINATE_TENANT' => false], null, 300);
+            $process->run();
+            $ok = $process->isSuccessful();
+            $this->line(json_encode(['event' => $ok ? 'scheduler.provisioned' : 'scheduler.provision_failed', 'tenant' => $tid]));
+            if (!$ok) {
+                Log::error("scheduler: provisioning {$tid} failed", ['output' => substr($process->getErrorOutput() . $process->getOutput(), -1500)]);
+            }
+        }
+    }
+
     private function tick(): int
     {
+        // Registry housekeeping first, so a tenant that just appeared is provisioned and one just suspended is skipped this tick.
+        // Both are outside any tenant and neither can fail the tick: bounded staleness is allowed (contract A.2).
+        $this->reconcileIfDue();
+        $this->provisionPending();
+
         // a fresh replica object every tick: status changes and new tenants apply without a restart
-        $replica = new TenantReplica((string) config('luminate-tenancy.replica_path'), app(PlacementResolver::class));
+        $replica = new TenantReplica(app(ReplicaSource::class), app(PlacementResolver::class));
 
         try {
             $selection = (new ActiveTenantSelector())->select($replica);

@@ -11,7 +11,9 @@ use Illuminate\Support\ServiceProvider;
 use Laravel\Passport\Passport;
 use Luminate\Tenancy\Auth\TenantAccessToken;
 use Luminate\Tenancy\Auth\TenantTokenBinding;
+use Luminate\Tenancy\Console\ImportRegistryCommand;
 use Luminate\Tenancy\Console\MaintenanceCommand;
+use Luminate\Tenancy\Console\ReconcileRegistryCommand;
 use Luminate\Tenancy\Console\ProvisionTenantCommand;
 use Luminate\Tenancy\Http\Middleware\AddFullyGraded;
 use Luminate\Tenancy\Scheduling\ScheduleGuard;
@@ -38,6 +40,15 @@ use Luminate\Tenancy\Http\Middleware\VerifyTenantContext;
 use Luminate\Tenancy\Queue\QueueTagger;
 use Luminate\Tenancy\Queue\QueueTenantGate;
 use Luminate\Tenancy\Queue\TenantQueueGuard;
+use Luminate\Tenancy\Registry\DatabaseRegistryStore;
+use Luminate\Tenancy\Registry\GuzzleRegistryFetcher;
+use Luminate\Tenancy\Registry\Reconciler;
+use Luminate\Tenancy\Registry\RegistryAuth;
+use Luminate\Tenancy\Registry\RegistryFetcher;
+use Luminate\Tenancy\Registry\RegistryStore;
+use Luminate\Tenancy\Replica\DatabaseReplicaSource;
+use Luminate\Tenancy\Replica\FileReplicaSource;
+use Luminate\Tenancy\Replica\ReplicaSource;
 use Luminate\Tenancy\Replica\TenantReplica;
 use Luminate\Tenancy\Scheduling\ScheduleWorkCommand;
 use Luminate\Tenancy\Testing\ProbeJobCommand;
@@ -75,9 +86,39 @@ final class TenancyServiceProvider extends ServiceProvider
             return new PlacementResolver($cfg['connections'], $cfg['allowed_buckets']);
         });
 
+        // Registry replica (contract §A.2). The source is NOT a singleton: the scheduler builds a fresh one per tick on purpose.
+        $this->app->singleton(RegistryStore::class, DatabaseRegistryStore::class);
+        $this->app->bind(ReplicaSource::class, function ($app) {
+            $cfg = $app['config']['luminate-tenancy'];
+
+            return match ((string) $cfg['replica_driver']) {
+                'database' => new DatabaseReplicaSource($app->make(RegistryStore::class), (int) $cfg['replica_cache_ttl']),
+                'file' => new FileReplicaSource((string) $cfg['replica_path']),
+                default => throw new \RuntimeException("Unknown luminate-tenancy.replica_driver '{$cfg['replica_driver']}' (database|file)"),
+            };
+        });
         $this->app->singleton(TenantReplica::class, fn ($app) => new TenantReplica(
-            (string) $app['config']['luminate-tenancy.replica_path'],
+            $app->make(ReplicaSource::class),
             $app->make(PlacementResolver::class)
+        ));
+        $this->app->singleton(RegistryAuth::class, fn ($app) => new RegistryAuth(
+            $this->registryKeys((array) $app['config']['luminate-tenancy']),
+            (int) $app['config']['luminate-tenancy.registry.window']
+        ));
+        $this->app->singleton(RegistryFetcher::class, fn ($app) => new GuzzleRegistryFetcher(
+            [
+                'url' => $app['config']['luminate-tenancy.registry.pull_url'],
+                'allow_http' => (bool) $app['config']['luminate-tenancy.registry.allow_http'],
+                'timeout' => (int) $app['config']['luminate-tenancy.registry.timeout'],
+                'connect_timeout' => (int) $app['config']['luminate-tenancy.registry.connect_timeout'],
+            ],
+            $app->make(RegistryAuth::class)
+        ));
+        $this->app->singleton(Reconciler::class, fn ($app) => new Reconciler(
+            $app->make(RegistryFetcher::class),
+            $app->make(RegistryStore::class),
+            $app->make(RegistryAuth::class),
+            (int) $app['config']['luminate-tenancy.registry.skew']
         ));
 
         $this->app->singleton(QueueTagger::class, fn ($app) => new QueueTagger($this->signingKeys($app['config']['luminate-tenancy'])));
@@ -157,7 +198,7 @@ final class TenancyServiceProvider extends ServiceProvider
 
             $commands = [
                 StatusCommand::class, ProvisionTenantCommand::class, ScheduleWorkCommand::class, MaintenanceCommand::class,
-                DispatchDueWebhooksCommand::class, PruneWebhooksCommand::class,
+                DispatchDueWebhooksCommand::class, PruneWebhooksCommand::class, ReconcileRegistryCommand::class, ImportRegistryCommand::class,
             ];
             if ((bool) $this->app['config']['luminate-tenancy.fixtures']) {
                 $commands[] = ProbeJobCommand::class;
@@ -196,6 +237,9 @@ final class TenancyServiceProvider extends ServiceProvider
             return;
         }
 
+        // Registry push endpoints (contract §A.2): no tenant context, authenticated by their own HMAC.
+        $this->loadRoutesFrom(__DIR__ . '/../routes/registry.php');
+
         $kernel = $this->app->make(HttpKernel::class);
         $kernel->prependMiddleware(VerifyTenantContext::class);
         $kernel->pushMiddleware(AddFullyGraded::class); // contract v5 §F: is_fully_graded on the attempts list/detail
@@ -214,6 +258,22 @@ final class TenancyServiceProvider extends ServiceProvider
             throw new \RuntimeException("LUMINATE_TENANT={$tid} refused: tenant is unknown, not active, or its placement is unsupported here (" . $e::class . ').');
         }
         $this->app->make(TenantRuntime::class)->activate($resolved, longLivedProcess: true);
+    }
+
+    /**
+     * The registry key(s). A registry key that equals a tenant-context key is refused outright (registry sync then answers 503):
+     * a leaked context key must not be able to rewrite the registry.
+     *
+     * @return list<string>
+     */
+    private function registryKeys(array $cfg): array
+    {
+        $keys = array_values(array_filter(
+            [$cfg['registry']['keys']['current'] ?? null, $cfg['registry']['keys']['previous'] ?? null],
+            static fn ($k) => is_string($k) && $k !== ''
+        ));
+
+        return array_intersect($keys, $this->signingKeys($cfg)) === [] ? $keys : [];
     }
 
     /** @return list<string> current key first, then the optional previous key */

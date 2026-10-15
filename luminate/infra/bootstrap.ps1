@@ -50,6 +50,7 @@ $gen = @{
     INITIAL_USER_PASSWORD  = New-Secret 12
     TENANT_CONTEXT_KEY     = New-Secret 48
     LUMINATE_WEBHOOK_SECRET = New-Secret 48
+    LUMINATE_REGISTRY_KEY  = New-Secret 48
     PGBOUNCER_ADMIN_PASSWORD = New-Secret 24
     JWT_PUBLIC_KEY_BASE64  = To-B64 $pub
     JWT_PRIVATE_KEY_BASE64 = To-B64 $priv

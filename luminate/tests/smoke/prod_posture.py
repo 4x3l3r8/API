@@ -92,9 +92,9 @@ check("no other service is configured with the owner role", not others, str(othe
 
 # ======================================================================================================================
 print("--- B2. A production-like API over real HTTP")
-PORT = 8097  # not 8099: the dev webhook receiver publishes that one
+PORT = 8097  # not 8099 (dev webhook receiver) or 8098 (dev registry stub)
 try:
-    up = prodlike_server("luminate-prodcheck", PORT)
+    up = prodlike_server("luminate-prodcheck", PORT, ["LUMINATE_REGISTRY_PULL_URL=https://luminate.invalid/registry/tenants"])
     check("the production-like server starts", up)
     if up:
         u = f"http://127.0.0.1:{PORT}"
@@ -109,6 +109,11 @@ try:
         check("the test fixtures do not exist (no probe commands registered)", rc == 0 and "probe" not in out and "luminate:tenancy:status" in out, out[-200:])
         rc, out, err = sh(["docker", "exec", "luminate-prodcheck", "php", "artisan", "luminate:tenancy:status", "--strict"])
         check("`luminate:tenancy:status --strict` passes in the production-like container", rc == 0 and "OK" in out, (out + err)[-300:])
+        for label, env, needle in (("no registry pull url (no reconciliation safety net behind push)", "LUMINATE_REGISTRY_PULL_URL=", "registry pull url"),
+                                   ("no registry key (Luminate could not push tenant changes)", "LUMINATE_REGISTRY_KEY=", "registry key"),
+                                   ("a static-file replica instead of push + reconcile", "LUMINATE_REPLICA_DRIVER=file", "replica driver")):
+            rc, out, err = sh(["docker", "exec", "-e", env, "luminate-prodcheck", "php", "artisan", "luminate:tenancy:status", "--strict"])
+            check(f"`--strict` FAILS with {label}", rc != 0 and needle in out, (out + err)[-200:])
 finally:
     sh(["docker", "rm", "-f", "luminate-prodcheck"])
 
@@ -119,10 +124,10 @@ check("...and `--strict` FAILS on the dev stack, so the check can tell the diffe
 print("--- C1. A process configured with the OWNER role refuses to serve tenant work")
 OWNER_ENV = [f"DB_USERNAME={OWNER}", f"DB_PASSWORD={E['DB_OWNER_PASSWORD']}"]
 try:
-    up = prodlike_server("luminate-ownercheck", 8098, OWNER_ENV)
+    up = prodlike_server("luminate-ownercheck", 8096, OWNER_ENV)
     check("a server misconfigured with the owner role starts (it is the deployment that is wrong)", up)
     if up:
-        u = "http://127.0.0.1:8098"
+        u = "http://127.0.0.1:8096"
         s, body = get(u + "/api/events", {"X-Tenant-Context": token("t-alpha")})
         check("HTTP: it refuses every request with 503 forbidden_db_role, even with a valid tenant token", s == 503 and "forbidden_db_role" in body, f"{s} {body[:100]}")
         s, body = get(u + "/docs")

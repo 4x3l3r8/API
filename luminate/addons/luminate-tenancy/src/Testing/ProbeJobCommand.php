@@ -20,7 +20,7 @@ final class ProbeJobCommand extends Command
     protected $signature = 'luminate:tenancy:probe-job
         {label : identifies this job in the results}
         {tid? : dispatch while this tenant is active; omit to dispatch with NO tenant}
-        {--forge=none : none|bad-sig|swap-tid|replay|unknown|inactive|no-tag|garbage-tag}';
+        {--forge=none : none|bad-sig|swap-tid|replay|unknown|inactive|signed|no-tag|garbage-tag}';
     protected $description = 'Test fixture: dispatch a ProbeJob, optionally with a forged tenant tag.';
 
     public function handle(TenantReplica $replica, TenantRuntime $runtime, QueueTagger $tagger): int
@@ -71,6 +71,9 @@ final class ProbeJobCommand extends Command
                 break;
             case 'inactive': // correctly signed, tenant exists but is suspended
                 $payload[QueueTagger::PAYLOAD_KEY] = $tagger->tag($uuid, 't-gamma')[QueueTagger::PAYLOAD_KEY];
+                break;
+            case 'signed': // correctly signed for {tid}, whatever the replica says about it now (a tenant suspended after dispatch)
+                $payload[QueueTagger::PAYLOAD_KEY] = $tagger->tag($uuid, $victim)[QueueTagger::PAYLOAD_KEY];
                 break;
             case 'no-tag':
                 break;

@@ -8,6 +8,7 @@ use Illuminate\Console\Command;
 use Illuminate\Support\Facades\DB;
 use Luminate\Tenancy\Database\AppRoleGuard;
 use Luminate\Tenancy\Database\TenantPostgresConnection;
+use Luminate\Tenancy\Registry\RegistryStore;
 
 /** Health/drift report. Exit code 1 on any problem, so it can gate deployments and the isolation suite. */
 final class StatusCommand extends Command
@@ -70,12 +71,15 @@ final class StatusCommand extends Command
             }
         }
 
+        $registry = $this->registryReport($problems);
+
         $report = [
             'connection' => $conn::class,
             'exempt_paths' => $exempt,
             'fixtures' => $fixtures,
             'forbidden_db_users' => $forbidden,
             'db_role' => $role->name,
+            'registry' => $registry,
             'tenant_owned_tables' => (int) $counts->tenant_owned,
             'exempt_tables' => (int) $counts->exempt,
             'problems' => $problems,
@@ -87,6 +91,7 @@ final class StatusCommand extends Command
             $this->info("connection: {$report['connection']}");
             $this->info("db role: {$report['db_role']}");
             $this->info("tenant-owned tables: {$report['tenant_owned_tables']}  exempt: {$report['exempt_tables']}");
+            $this->info('registry replica: ' . json_encode($registry));
             foreach ($problems as $p) {
                 $this->error($p);
             }
@@ -94,5 +99,68 @@ final class StatusCommand extends Command
         }
 
         return $problems === [] ? self::SUCCESS : self::FAILURE;
+    }
+
+    /**
+     * The registry replica (contract A.2). Staleness is reported, never enforced: bounded staleness is allowed, and refusing work
+     * because Luminate is briefly unreachable would be a worse outage than the one it guards against.
+     *
+     * @param list<string> $problems
+     *
+     * @return array<string,mixed>
+     */
+    private function registryReport(array &$problems): array
+    {
+        $cfg = (array) config('luminate-tenancy');
+        $driver = (string) $cfg['replica_driver'];
+        $set = static fn ($k) => is_string($k) && $k !== '';
+        $keys = array_values(array_filter([$cfg['registry']['keys']['current'] ?? null, $cfg['registry']['keys']['previous'] ?? null], $set));
+        $ctx = array_values(array_filter([$cfg['keys']['current'] ?? null, $cfg['keys']['previous'] ?? null], $set));
+        $report = ['driver' => $driver, 'keys_configured' => $keys !== [], 'pull_configured' => (string) $cfg['registry']['pull_url'] !== ''];
+
+        if (array_intersect($keys, $ctx) !== []) {
+            $problems[] = 'the registry key equals a tenant-context key: registry sync is disabled (use a distinct key)';
+        }
+        if ($this->option('strict')) {
+            if ($driver !== 'database') {
+                $problems[] = "replica driver is '{$driver}': production must use 'database' (push + reconcile), not a static file";
+            }
+            if ($keys === []) {
+                $problems[] = 'no registry key is configured (LUMINATE_REGISTRY_KEY): Luminate cannot push tenant changes';
+            }
+            if (!$report['pull_configured']) {
+                $problems[] = 'no registry pull url is configured (LUMINATE_REGISTRY_PULL_URL): there is no reconciliation safety net behind push';
+            }
+            if ($cfg['registry']['allow_http']) {
+                $problems[] = 'registry pull over plain http is allowed (LUMINATE_REGISTRY_ALLOW_HTTP): dev only';
+            }
+        }
+        if ($driver !== 'database') {
+            return $report;
+        }
+
+        try {
+            $store = app(RegistryStore::class);
+            $rows = $store->all();
+            $state = $store->pullState();
+        } catch (\Throwable $e) {
+            $problems[] = 'registry replica unreadable: ' . $e->getMessage();
+
+            return $report;
+        }
+        $byStatus = [];
+        foreach ($rows as $r) {
+            $byStatus[$r['status']] = ($byStatus[$r['status']] ?? 0) + 1;
+        }
+        $report += ['tenants' => $byStatus, 'pending_provision' => $store->pendingProvision(), 'last_pull' => $state];
+
+        if ($report['pull_configured']) {
+            $age = $state['ok_at'] === null ? null : time() - $state['ok_at'];
+            if ($age === null || $age > (int) $cfg['registry']['stale_after']) {
+                $problems[] = 'registry replica is stale: last successful reconcile ' . ($age === null ? 'never' : "{$age}s ago") . ($state['error'] ? " (last error: {$state['error']})" : '');
+            }
+        }
+
+        return $report;
     }
 }

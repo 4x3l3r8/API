@@ -61,6 +61,13 @@ x-wellms-env: &wellms-env
   LUMINATE_WEBHOOK_ALLOW_HTTP: ${LUMINATE_WEBHOOK_ALLOW_HTTP:-false}
   LUMINATE_WEBHOOK_BACKOFF: ${LUMINATE_WEBHOOK_BACKOFF:-60,300,1800,7200,21600}
   LUMINATE_WEBHOOK_MAX_AGE: ${LUMINATE_WEBHOOK_MAX_AGE:-86400}
+  # Registry replica (contract §A.2): tenants are pushed by Luminate (PUT /api/luminate/registry/tenants/{tid}) and reconciled by a
+  # periodic signed pull. The key is NOT the tenant-context key. No pull URL = push only (production sets one: it is the safety net).
+  LUMINATE_REGISTRY_KEY: ${LUMINATE_REGISTRY_KEY:?run bootstrap.ps1}
+  LUMINATE_REGISTRY_KEY_PREVIOUS: ${LUMINATE_REGISTRY_KEY_PREVIOUS:-}
+  LUMINATE_REGISTRY_PULL_URL: ${LUMINATE_REGISTRY_PULL_URL:-}
+  LUMINATE_REGISTRY_ALLOW_HTTP: ${LUMINATE_REGISTRY_ALLOW_HTTP:-false}
+  LUMINATE_REGISTRY_RECONCILE_INTERVAL: ${LUMINATE_REGISTRY_RECONCILE_INTERVAL:-300}
   # Wellms must never autonomously move money (contract §H): its commerce schedule and renewal jobs are off by default
   # (LUMINATE_DISABLED_SCHEDULES / LUMINATE_DENIED_JOBS in the add-on config). failed_jobs is pruned after this many hours.
   LUMINATE_FAILED_JOBS_RETENTION_HOURS: ${LUMINATE_FAILED_JOBS_RETENTION_HOURS:-336}
@@ -192,8 +199,6 @@ services:
       DISABLE_SCHEDULER: "true"
       DISABLE_DB_MIGRATE: "true"
       DISABLE_DB_SEED: "true"
-    volumes:
-      - ./tenants.snapshot.json:/etc/luminate/tenants.json:ro
     healthcheck:
       # The image's own check (artisan health:check) reports healthy about 28 s before php-fpm accepts connections (init.sh is still
       # running), and during that window Caddy answers 502. Healthy must mean "can serve": the FastCGI port is open.
@@ -219,8 +224,6 @@ services:
       DISABLE_SCHEDULER: "true"
       DISABLE_DB_MIGRATE: "true"
       DISABLE_DB_SEED: "true"
-    volumes:
-      - ./tenants.snapshot.json:/etc/luminate/tenants.json:ro
     restart: unless-stopped
 
   # Per-tenant scheduler: one `schedule:run` child process per ACTIVE tenant per minute, tenants taken from the replica.
@@ -235,7 +238,6 @@ services:
       DB_PASSWORD: ${DB_APP_PASSWORD}
     volumes:
       - ./scripts/scheduler.sh:/scheduler.sh:ro
-      - ./tenants.snapshot.json:/etc/luminate/tenants.json:ro
     entrypoint: ["/bin/sh", "/scheduler.sh"]
     healthcheck:
       # healthy while the scheduler loop keeps ticking (it touches this file after every tick)

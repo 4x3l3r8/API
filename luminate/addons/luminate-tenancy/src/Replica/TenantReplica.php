@@ -8,27 +8,23 @@ use Luminate\Tenancy\Context\ContextRejected;
 use Luminate\Tenancy\Context\PlacementResolver;
 use Luminate\Tenancy\Context\ResolvedTenant;
 use Luminate\Tenancy\Context\TenantContext;
-use RuntimeException;
 
 /**
  * Local, advisory replica of the Luminate tenant registry (contract §A.2), for work with NO signed request:
  * provisioning, queue workers, the scheduler, reconciliation. Never used on the request path (the signed
  * context token is authoritative there).
  *
- * Interim implementation: a static JSON snapshot mirroring the registry. FOLLOW-UP (not built): push-from-Luminate
- * on change plus a periodic reconcile pull, which would write this same file/shape.
- *
- *   { "version": 1, "tenants": { "<tid>": { "status": "active",
- *       "placement": { "mode": "pooled", "connection": "shard-1", "bucket": "wellms", "cache_prefix": "<tid>" } } } }
+ * Entries come from a ReplicaSource: the shared database table kept by push + reconcile (production), or a static
+ * JSON snapshot (tests, seeding).
  */
 final class TenantReplica
 {
-    /** @var array<string,array{status:string,placement:array<string,string>}>|null */
-    private ?array $tenants = null;
-    private int $loadedMtime = 0;
+    private readonly ReplicaSource $source;
 
-    public function __construct(private readonly string $path, private readonly PlacementResolver $placements)
+    /** @param ReplicaSource|string $source a source, or the path of a JSON snapshot (the interim file source) */
+    public function __construct(ReplicaSource|string $source, private readonly PlacementResolver $placements)
     {
+        $this->source = is_string($source) ? new FileReplicaSource($source) : $source;
     }
 
     /** @return list<string> */
@@ -73,31 +69,6 @@ final class TenantReplica
     /** @return array<string,array{status:string,placement:array<string,string>}> */
     private function load(): array
     {
-        if (!is_file($this->path) || !is_readable($this->path)) {
-            throw new RuntimeException("Tenant replica snapshot not found at {$this->path}");
-        }
-        // long-lived workers/schedulers: pick up a rewritten snapshot (status changes, new tenants) without a restart
-        clearstatcache(true, $this->path);
-        $mtime = (int) filemtime($this->path);
-        if ($this->tenants !== null && $mtime === $this->loadedMtime) {
-            return $this->tenants;
-        }
-        $data = json_decode((string) file_get_contents($this->path), true, 16, JSON_THROW_ON_ERROR);
-        $tenants = $data['tenants'] ?? null;
-        if (!is_array($tenants)) {
-            throw new RuntimeException('Tenant replica snapshot has no "tenants" object');
-        }
-        foreach ($tenants as $tid => $entry) {
-            $p = $entry['placement'] ?? null;
-            if (!is_string($tid) || !is_string($entry['status'] ?? null) || !is_array($p)
-                || !is_string($p['mode'] ?? null) || !is_string($p['connection'] ?? null)
-                || !is_string($p['bucket'] ?? null) || !is_string($p['cache_prefix'] ?? null)) {
-                throw new RuntimeException("Tenant replica entry for '{$tid}' is incomplete");
-            }
-        }
-
-        $this->loadedMtime = $mtime;
-
-        return $this->tenants = $tenants;
+        return $this->source->entries();
     }
 }

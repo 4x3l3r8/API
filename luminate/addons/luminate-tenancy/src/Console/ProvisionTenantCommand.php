@@ -10,6 +10,7 @@ use Illuminate\Support\Facades\DB;
 use Luminate\Tenancy\Context\ContextRejected;
 use Luminate\Tenancy\Context\TenantRuntime;
 use Luminate\Tenancy\Database\AppRoleGuard;
+use Luminate\Tenancy\Registry\RegistryStore;
 use Luminate\Tenancy\Replica\TenantReplica;
 
 /**
@@ -50,6 +51,7 @@ final class ProvisionTenantCommand extends Command
                 // long-lived process switching tenants: also drop in-memory permission state between tenants
                 $runtime->activate($replica->resolve($tid, ['provisioning', 'active']), longLivedProcess: true);
                 $this->provision($tid);
+                $this->recordProvisioned($tid);
             } catch (ContextRejected $e) {
                 $this->error("{$tid}: refused ({$e->code()})");
                 $failed++;
@@ -59,6 +61,14 @@ final class ProvisionTenantCommand extends Command
         }
 
         return $failed === 0 ? self::SUCCESS : self::FAILURE;
+    }
+
+    /** Tell the registry replica this tenant's baseline exists (Luminate reads it before flipping the tenant to active). */
+    private function recordProvisioned(string $tid): void
+    {
+        if (config('luminate-tenancy.replica_driver') === 'database') {
+            app(RegistryStore::class)->markProvisioned($tid, time());
+        }
     }
 
     private function provision(string $tid): void

@@ -24,6 +24,7 @@ Contract: `docs/LMS_INTEGRATION_CONTRACT.md` (v3). Where this deviates or extend
 | Jobs run as the tenant that dispatched them, or not at all | HMAC tag bound to the job uuid; verified before deserialisation; refusals dead-lettered | `queue_failclosed.py` |
 | Settings, cache, files are per tenant | cache prefix; per-tenant settings reload; S3 key prefix and local scratch directories | `config_isolation.py`, `storage_isolation.py` |
 | Scheduled work runs per active tenant only | `luminate:schedule:work`, a `schedule:run` child per active tenant from the replica | `scheduler_per_tenant.py` |
+| "Add a tenant = a row" (contract §A.2): Luminate pushes tenant changes, a signed pull reconciles; workers, the scheduler and provisioning follow it; updates only move forward | `luminate_tenant_registry` (global table), HMAC-signed `PUT /api/luminate/registry/tenants/{tid}`, `luminate:registry:reconcile`, rev ordering, tombstones | `registry_sync.py`, unit tests |
 | The app never serves tenant work as the owner/superuser | `AppRoleGuard` (HTTP, jobs, provisioning) + the session list in Postgres | `prod_posture.py` |
 | Production posture: no tenant-less Swagger, no fixtures | base compose is secure by default; `status --strict` | `prod_posture.py` |
 | Signed webhooks to Luminate (contract v4 §F): signed, stable delivery id, backoff, dead-letter, tenant in the body | outbox table (tenant-owned, RLS) is the source of truth; a queued job and a per-tenant sweeper only move rows along | `webhooks_e2e.py`, unit tests |
@@ -96,7 +97,7 @@ e.g. inside the built image with `--entrypoint sh`). All suites are re-runnable 
 ## Contract notes (for the contract owner)
 - `placement.bucket` is read as `<bucket>[/<key-prefix>]`; a pooled tenant with no prefix gets `tenants/<tid>`. (Asked; approved as recommended.)
 - A queued job for a non-active tenant is dead-lettered (`failed_jobs`, retryable with `queue:retry`), not deferred: Horizon runs with `tries=1`, so a deferral would burn the attempt.
-- §A.2 replica: only the static snapshot exists; **push-from-Luminate and the periodic reconcile are not built** (parked, see below).
+- §A.2 replica: push + reconcile are built, but the contract does not yet define their wire shape, so **this is a proposal for the contract owner** (below).
 - Webhooks are built to §F v4/v5 and are OFF until `LUMINATE_WEBHOOK_URL` is set (a secret is then mandatory; https only outside dev).
   The retry schedule is read as: first attempt immediate, then +1m, +5m, +30m, +2h, +6h, and +6h repeating, dead-lettered when the next
   attempt would land beyond 24 h of the event (8 attempts over about 20.6 h). The contract says "e.g.", so this is a reading, not a rule.
@@ -111,8 +112,25 @@ e.g. inside the built image with `--entrypoint sh`). All suites are re-runnable 
   "final" is `is_ended && is_fully_graded`. Suggested wording for §F.
 - `topic_type` in `topic.completed` is Wellms' own `topicable_type` (the model class), exactly as its API exposes it.
 
+## Registry sync, proposed wire shape (for §A.2; not yet in the contract)
+The contract names push-on-change plus a reconciliation pull but defines neither. Built as follows, and the Luminate side needs to match it:
+- **Auth, both directions:** `X-Luminate-Timestamp: <unix s>` and `X-Luminate-Signature: sha256=hex(HMAC(registry_key, "{ts}.{METHOD}.{path}.{sha256hex(body)}"))`.
+  The key is `LUMINATE_REGISTRY_KEY` (current + previous for rotation) and **must differ from the tenant-context key** (a shared key disables sync). 300 s window.
+  Method and path are inside the signature, so a captured push cannot be replayed at another tenant.
+- **Push:** `PUT /api/luminate/registry/tenants/{tid}` with `{"status": "provisioning|active|suspended|removed", "rev": <int>, "placement": {mode, connection, bucket, cache_prefix}}`.
+  `200 {outcome: applied|unchanged|stale}`, `409 conflict` (same rev, different content), `422` invalid, `401` bad signature. No tenant-context header (these routes create tenants).
+  `GET .../tenants/{tid}` and `GET .../tenants` (signed) return the replica row including `provisioned`, which Luminate should wait on before flipping a tenant to `active`.
+- **`rev`:** Luminate's monotonic per-tenant revision. **It must never decrease for a tenant id, including across delete and recreate.** Wellms only moves forward, so a late
+  "active" cannot undo a newer "suspended" (push or pull). An explicit `removed` is a tombstone and needs a strictly newer rev to undo.
+- **Pull:** Wellms does `GET {LUMINATE_REGISTRY_PULL_URL}` (signed as above) every `LUMINATE_REGISTRY_RECONCILE_INTERVAL` (300 s), from the scheduler. Luminate answers
+  `{"as_of": <unix s>, "tenants": [{"tenant_id", "status", "rev", "placement"}, ...]}` with **response** headers `X-Luminate-Timestamp` and
+  `X-Luminate-Signature: sha256=hex(HMAC(key, "response." + ts + "." + sha256hex(body)))`, so a forged list is refused even over bad transport.
+  All-or-nothing: one malformed entry, a bad signature, an `as_of` in the future, or an empty list (unless `--allow-empty`) rejects the whole pull and changes nothing.
+  A tenant absent from the list is tombstoned (`removed`), never deleted, unless something touched it within 120 s before `as_of` (an in-flight push is safe).
+- **Provisioning:** a tenant that appears (push or pull) as `provisioning` or `active` is provisioned by the scheduler within a tick; no operator step.
+- **Staleness:** reported (`luminate:tenancy:status`), never enforced; the replica cache in a worker is 2 s. Requests never read the replica (the signed context token decides).
+
 ## Known gaps and unknowns
-- **Parked (4d):** replica push + reconcile sync (the PgBouncer live run is done, see above).
 - **Cost of per-statement scoping:** about 0.62 ms per statement outside a transaction on this host; material for chatty requests and linear in network round-trip time.
   Options, none built: merge BEGIN + set_config into one round trip (about 27 to 32 percent of the overhead, a small change to the connection class), cut Wellms'
   statement count per request (its role/permission loading is an N+1: 208 statements for a cold users list), run PgBouncer next to the app, or scope a whole read-only

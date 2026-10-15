@@ -43,7 +43,7 @@ final class VerifyTenantContext
             return response()->json(['message' => 'Service misconfigured.', 'code' => 'tenant_context_forbidden_db_role'], 503);
         }
 
-        if ($this->isExempt($request)) {
+        if ($this->isExempt($request) || $this->isRegistryRoute($request)) {
             return $next($request);
         }
 
@@ -76,6 +76,16 @@ final class VerifyTenantContext
     // No terminate(): the tenant must stay active until the process ends so that work run after the response
     // (dispatchAfterResponse, terminating callbacks) still executes as the right tenant. State cannot leak between requests:
     // PHP-FPM discards it, and handle() resets to "no tenant" first thing on every request (Octane/Swoole is unsupported).
+
+    /**
+     * The registry sync endpoints (contract §A.2) create and change tenants, so they cannot carry a tenant context. They are the
+     * ONLY non-GET-only exemption, they authenticate themselves with their own HMAC (RegistryController), and they run with no
+     * tenant active: the registry tables are global and nothing tenant-owned is reachable from there.
+     */
+    private function isRegistryRoute(Request $request): bool
+    {
+        return $request->is('api/luminate/registry/tenants', 'api/luminate/registry/tenants/*');
+    }
 
     private function isExempt(Request $request): bool
     {

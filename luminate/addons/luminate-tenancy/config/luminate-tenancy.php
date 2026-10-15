@@ -82,8 +82,33 @@ return [
     // Test fixtures (probe job + dispatch command used by the isolation suite). MUST be false outside dev/test.
     'fixtures' => filter_var(env('LUMINATE_TENANCY_TEST_FIXTURES', false), FILTER_VALIDATE_BOOLEAN),
 
-    // Local registry replica for out-of-request work (contract §A.2). Interim: a static snapshot file.
+    // Local registry replica for out-of-request work (contract §A.2): which tenants exist, their status and placement. Read by
+    // queue workers, the scheduler and provisioning; never on the request path (the signed context token is authoritative there).
+    //   database: the shared table kept by push + reconcile (production).   file: a static JSON snapshot (tests, seeding).
+    'replica_driver' => env('LUMINATE_REPLICA_DRIVER', 'database'),
+    // in-process cache of the database replica, seconds. This is the bounded staleness for a running worker. 0 = every read.
+    'replica_cache_ttl' => (int) env('LUMINATE_REPLICA_CACHE_TTL', 2),
+    // The snapshot file: the `file` driver reads it; `luminate:registry:import` seeds an empty database from it (insert-only).
     'replica_path' => env('LUMINATE_TENANCY_REPLICA', '/etc/luminate/tenants.json'),
+
+    // Registry sync with Luminate (contract §A.2): push on change (PUT /api/luminate/registry/tenants/{tid}) + a periodic pull.
+    // Both are authenticated with HMAC using a key that must differ from the tenant-context key; unset = the endpoints answer 503.
+    'registry' => [
+        'keys' => [
+            'current' => env('LUMINATE_REGISTRY_KEY'),
+            'previous' => env('LUMINATE_REGISTRY_KEY_PREVIOUS'),
+        ],
+        'window' => (int) env('LUMINATE_REGISTRY_WINDOW', 300), // accepted timestamp skew, seconds
+        'pull_url' => env('LUMINATE_REGISTRY_PULL_URL'),         // empty = no pull (push only)
+        'allow_http' => filter_var(env('LUMINATE_REGISTRY_ALLOW_HTTP', false), FILTER_VALIDATE_BOOLEAN), // dev only
+        'timeout' => (int) env('LUMINATE_REGISTRY_TIMEOUT', 10),
+        'connect_timeout' => (int) env('LUMINATE_REGISTRY_CONNECT_TIMEOUT', 5),
+        'reconcile_interval' => (int) env('LUMINATE_REGISTRY_RECONCILE_INTERVAL', 300), // seconds between pulls (scheduler)
+        // a tenant touched within this many seconds before the snapshot's as_of is not tombstoned by it (clock skew + in-flight push)
+        'skew' => (int) env('LUMINATE_REGISTRY_SKEW', 120),
+        // status/health report a replica not reconciled for this long (seconds); it never blocks work (bounded staleness is allowed)
+        'stale_after' => (int) env('LUMINATE_REGISTRY_STALE_AFTER', 3600),
+    ],
 
     // Rows that Wellms MIGRATIONS insert with no tenant (so no tenant can see them); provisioning creates them per tenant.
     // Observed on Wellms 1.0.54. `_key` = columns that identify a row. Any other table that ends up with NULL-tenant rows
@@ -102,5 +127,7 @@ return [
         'failed_jobs' => 'global queue failure log; payloads are only read from the CLI, never exposed by the API',
         'luminate_tenancy_exempt' => 'tenancy metadata',
         'luminate_tenancy_audit' => 'tenancy metadata',
+        'luminate_tenant_registry' => 'local replica of the Luminate tenant registry (contract A.2); global by design',
+        'luminate_registry_meta' => 'registry reconcile bookkeeping',
     ],
 ];

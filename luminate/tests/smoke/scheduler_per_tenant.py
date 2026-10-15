@@ -132,7 +132,7 @@ try:
     TMP = "/tmp/replica-test.json"
     write_replica(TMP, {"t-alpha": "suspended", "t-beta": "active", "t-delta": "provisioning"})
     redis("del", PROBE)
-    rc, events, raw = tick({"LUMINATE_TENANCY_REPLICA": TMP})
+    rc, events, raw = tick({"LUMINATE_REPLICA_DRIVER": "file", "LUMINATE_TENANCY_REPLICA": TMP})
     ran = {e["tenant"] for e in events if e["event"] == "scheduler.ran"}
     skipped = {e["tenant"]: e["reason"] for e in events if e["event"] == "scheduler.skip"}
     check("alpha suspended + delta provisioning + beta active: only beta ran", rc == 0 and ran == {"t-beta"}, f"{rc} {ran}")
@@ -141,16 +141,16 @@ try:
 
     write_replica(TMP, {"t-alpha": "suspended", "t-beta": "suspended"})
     redis("del", PROBE)
-    rc, events, raw = tick({"LUMINATE_TENANCY_REPLICA": TMP})
+    rc, events, raw = tick({"LUMINATE_REPLICA_DRIVER": "file", "LUMINATE_TENANCY_REPLICA": TMP})
     check("every tenant suspended: nothing runs and the tick still succeeds", rc == 0 and not [e for e in events if e["event"] == "scheduler.ran"] and not probes("schedule-closure"), f"{rc}")
 
     # ------------------------------------------------------------------------------------------------------------------
     print("--- D. Fail closed: an unreadable replica runs NOTHING")
     sh(["docker", "exec", "-i", "-u", "www-data", API, "sh", "-c", f"printf '{{not json' > {TMP}"])
     redis("del", PROBE)
-    rc, events, raw = tick({"LUMINATE_TENANCY_REPLICA": TMP})
+    rc, events, raw = tick({"LUMINATE_REPLICA_DRIVER": "file", "LUMINATE_TENANCY_REPLICA": TMP})
     check("corrupt replica: the tick fails, says why, and no tenant ran", rc != 0 and "unreadable" in raw and not probes("schedule-closure") and not probes("schedule-command"), f"{rc} {raw[-200:]}")
-    rc, events, raw = tick({"LUMINATE_TENANCY_REPLICA": "/nonexistent/tenants.json"})
+    rc, events, raw = tick({"LUMINATE_REPLICA_DRIVER": "file", "LUMINATE_TENANCY_REPLICA": "/nonexistent/tenants.json"})
     check("missing replica: the tick fails, and no tenant ran", rc != 0 and "unreadable" in raw and not probes("schedule-closure"), f"{rc} {raw[-200:]}")
     sh(["docker", "exec", "-u", "www-data", API, "rm", "-f", TMP])
 
