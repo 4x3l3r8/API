@@ -8,3 +8,4 @@ use Luminate\Tenancy\Http\Controllers\RegistryController;
 Route::get('api/luminate/registry/tenants', [RegistryController::class, 'index']);
 Route::get('api/luminate/registry/tenants/{tid}', [RegistryController::class, 'show']);
 Route::put('api/luminate/registry/tenants/{tid}', [RegistryController::class, 'upsert']);
+Route::post('api/luminate/registry/tenants/{tid}/admin-credential', [RegistryController::class, 'adminCredential']);

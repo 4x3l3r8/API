@@ -129,6 +129,7 @@ rc, base, err = sh(["docker", "compose", "-f", "docker-compose.yml", "config"], 
 check("base-only config renders", rc == 0, err[:200])
 check("with the base file alone the webhook module is OFF (no URL), http is refused, and the retry schedule is the contract's",
       'LUMINATE_WEBHOOK_URL: ""' in base and 'LUMINATE_WEBHOOK_ALLOW_HTTP: "false"' in base and "60,300,1800,7200,21600" in base and 'LUMINATE_WEBHOOK_MAX_AGE: "86400"' in base)
+check("no service is given a shared admin password: INITIAL_USER_PASSWORD is absent from the rendered config (each tenant's machine admin gets its own secret, contract A.2.2)", "INITIAL_USER_PASSWORD" not in base)
 check("the webhook secret is passed by reference to .env, never present in the file (the compose file contains no secret)", E["LUMINATE_WEBHOOK_SECRET"] not in (INFRA / "docker-compose.yml").read_text(encoding="utf-8") + (INFRA / "docker-compose.dev.yml").read_text(encoding="utf-8"))
 check("the dev receiver and its fast retry timings exist ONLY in the dev override", "webhook-receiver" not in base and "3,5,8,10" not in base)
 

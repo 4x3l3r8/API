@@ -54,10 +54,10 @@ $measure = function (string $name, callable $fn) use (&$count): array {
     return ['request' => $name, 'status' => $status] + $count;
 };
 
-[$s, $login] = call($http, 'POST', '/api/auth/login', null, ['email' => getenv('INITIAL_USER_EMAIL'), 'password' => getenv('INITIAL_USER_PASSWORD')]);
+[$s, $login] = call($http, 'POST', '/api/auth/login', null, ['email' => getenv('INITIAL_USER_EMAIL'), 'password' => getenv('PROBE_ADMIN_PASSWORD')]);
 $token = $login['data']['token'] ?? null;
 $rows = [];
-$rows[] = $measure('POST /api/auth/login', fn () => call($http, 'POST', '/api/auth/login', null, ['email' => getenv('INITIAL_USER_EMAIL'), 'password' => getenv('INITIAL_USER_PASSWORD')]));
+$rows[] = $measure('POST /api/auth/login', fn () => call($http, 'POST', '/api/auth/login', null, ['email' => getenv('INITIAL_USER_EMAIL'), 'password' => getenv('PROBE_ADMIN_PASSWORD')]));
 $rows[] = $measure('GET  /api/profile/me', fn () => call($http, 'GET', '/api/profile/me', $token));
 $rows[] = $measure('GET  /api/admin/users?per_page=50', fn () => call($http, 'GET', '/api/admin/users?per_page=50', $token));
 $rows[] = $measure('GET  /api/admin/courses?per_page=50', fn () => call($http, 'GET', '/api/admin/courses?per_page=50', $token));

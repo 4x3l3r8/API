@@ -19,11 +19,12 @@ import uuid
 
 sys.path.insert(0, str(pathlib.Path(__file__).resolve().parents[2] / "tools"))
 import context_token as ct  # noqa: E402
+import luminate_client as lc  # noqa: E402  (per-tenant machine-admin secrets, contract A.2.2)
 
 E = ct.read_env()
 BASE = (sys.argv[1] if len(sys.argv) > 1 else f"http://{E['LAN_HOST']}:{E.get('API_PORT', '8080')}").rstrip("/")
 KEY = E["TENANT_CONTEXT_KEY"]
-ADMIN, PASSWORD = E["INITIAL_USER_EMAIL"], E["INITIAL_USER_PASSWORD"]
+ADMIN = E["INITIAL_USER_EMAIL"]  # the password is per tenant: lc.password(tid)
 BUCKET = E.get("S3_BUCKET", "wellms")
 RUN = uuid.uuid4().hex[:8]
 MC_IMAGE = "minio/mc@sha256:a7fe349ef4bd8521fb8497f55c6042871b2ae640607cf99d9bede5e9bdf11727"
@@ -163,7 +164,7 @@ for lab, r in sorted(got.items()):
 print("--- C. The real media API, same filename in two tenants")
 tok = {}
 for t in ("t-alpha", "t-beta"):
-    s, r = call("POST", "/api/auth/login", t, body={"email": ADMIN, "password": PASSWORD})
+    s, r = call("POST", "/api/auth/login", t, body={"email": ADMIN, "password": lc.password(t)})
     tok[t] = r["data"]["token"] if s == 200 else ""
 DIR, NAME = f"docs-{RUN}", f"same-{RUN}.png"
 content = {"t-alpha": f"ALPHA-{RUN}", "t-beta": f"BETA-{RUN}"}  # markers appended after the PNG's IEND chunk

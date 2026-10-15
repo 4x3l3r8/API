@@ -32,6 +32,10 @@ return [
     // GET/HEAD paths served without a context token (e.g. Swagger UI). Leave EMPTY in production.
     'exempt_paths' => $list(env('LUMINATE_TENANCY_EXEMPT_PATHS', '')),
 
+    // The per-tenant machine admin the Luminate proxy uses (contract A.2.2). The USERNAME is not a secret; the password is unique per tenant,
+    // issued over the signed registry channel, and exists nowhere else. There is deliberately no shared default password.
+    'machine_admin_email' => env('INITIAL_USER_EMAIL', 'admin@luminate.test'),
+
     // The token never carries credentials: it names a placement, and Wellms maps it from its own config.
     'connections' => $connections,
     'allowed_buckets' => $list(env('LUMINATE_TENANCY_BUCKETS', env('AWS_BUCKET', ''))),

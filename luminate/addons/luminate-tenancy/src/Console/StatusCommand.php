@@ -58,6 +58,9 @@ final class StatusCommand extends Command
             if ($exempt !== []) {
                 $problems[] = 'tenant-context exempt paths are set (' . implode(',', $exempt) . '): those routes are served with NO tenant. Production must have none.';
             }
+            if ((string) (getenv('INITIAL_USER_PASSWORD') ?: ($_SERVER['INITIAL_USER_PASSWORD'] ?? '')) !== '') {
+                $problems[] = 'INITIAL_USER_PASSWORD is set: a shared default machine-admin password exists. Each tenant gets a unique secret issued over the signed channel (contract A.2.2); remove it.';
+            }
             if ($fixtures) {
                 $problems[] = 'test fixtures are enabled (LUMINATE_TENANCY_TEST_FIXTURES): never in production.';
             }

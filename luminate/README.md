@@ -186,9 +186,36 @@ to `active`. Staleness is reported by `luminate:tenancy:status`, never enforced;
 (`DB_REGISTRY_USER`, connection `luminate_registry`) that can touch nothing else. `luminate:tenancy:status` fails if the application role can write, and `--strict` also requires
 the writer to be configured and forbidden for tenant work.
 
+## Machine-admin credential (contract §A.2.2; part of the registry wire shape)
+Each tenant has exactly one **machine admin** the Luminate proxy uses to manage it (create users and courses, impersonate). No human logs in as it. There is **no shared default
+password anywhere**: provisioning creates the account with a throwaway password that is never stored or shown (even if `INITIAL_USER_PASSWORD` is present in the environment,
+which `status --strict` reports as a defect), and the only way to obtain a working credential is this call. Wellms keeps no copy, only the bcrypt hash.
+
+`POST /api/luminate/registry/tenants/{tid}/admin-credential`, signed exactly like the other registry calls (`{ts}.POST.{path}.{sha256hex(body)}`; path as above, no query).
+Body: **empty (or `{}`)** to have Wellms generate the secret, or `{"secret": "<32-128 printable ASCII, no spaces, >= 10 distinct characters>"}` to supply your own.
+
+| answer | meaning |
+|---|---|
+| `200 {"tenant_id","email","secret","generated","rotated_at"}` + `Cache-Control: no-store` | `email` is the machine username (the non-secret `INITIAL_USER_EMAIL`). Generated: `secret` is 48 random base-62 characters, **returned this once**. Supplied: `secret` is `null`, `generated` false, never echoed |
+| `404 registry_tenant_unknown` | unknown or `removed` |
+| `409 tenant_not_provisioned` | not yet provisioned (wait for `provisioned: true`), or `suspended` |
+| `409 registry_replayed` | this exact signature was already used (a captured request must not be able to rotate the secret again). Two calls inside one second sign identically: wait a second |
+| `422 registry_payload_invalid` | weak or malformed secret, unknown field, body not an object |
+| `401` / `503` | as the other registry routes |
+
+**Every successful call rotates**: the old secret stops working and **every token the old secret produced is revoked**. That is also how Luminate rotates on a schedule. A lost response is harmless: call again.
+Log in with `POST /api/auth/login` under the tenant's `X-Tenant-Context` using `{email, secret}`. Vectors (key `registry-test-key`, timestamp `1800000000`, tenant `t-demo`; pinned by `RegistryAuthTest::testPublishedVectors`):
+```
+POST /api/luminate/registry/tenants/t-demo/admin-credential          (empty body)
+message   = 1800000000.POST./api/luminate/registry/tenants/t-demo/admin-credential.e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855
+signature = sha256=93f04971034d59dab5d3d915d1779a23c649cb035b9a5c65ba06465e02ce6723
+
+body {"secret":"Luminate-Chosen.Secret_0123456789abcdef"}
+signature = sha256=33d5f46ccfbec598f8db900eb5c83a8b2534329995e33deea4bc3088621bf8f9
+```
+Dev: `tools/luminate_client.py` plays Luminate's side (`python -I luminate/tools/luminate_client.py password t-alpha`); a git-ignored file stands in for Luminate's secret store, and every suite fetches its tenants' secrets through it.
+
 ## Known gaps and unknowns
-- **Must before prod, not built:** per-tenant bootstrap admin (contract A.2.2). Provisioning still creates each tenant's first admin from the shared env credential. Needs a decision on how the unique credential
-  reaches the tenant (Wellms has no forced-change flag; options are a one-time reset link to an admin e-mail supplied with the tenant, or a generated secret returned once to Luminate over the signed channel).
 - **Gate coverage gaps (see `tests/gate/README.md`):** about 320 operations have no victim id to attack (collections, or types the seeder cannot create: xAPI/Trax LRS stores, payments, templates, ...).
   They still get V1, V2, the leak scan and the write check. About 120 operations are 5xx in stock Wellms for the victim's own request too (Passport web routes call `viaRemember`; nothing runs).
   Two endpoints (`*/signed-screen-urls`) accept a foreign `webinar_id`/`consultation_id` in the body and return a signed URL under the attacker's own tenant prefix (no victim data returned).

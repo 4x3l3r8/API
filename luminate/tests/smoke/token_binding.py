@@ -17,11 +17,12 @@ import urllib.request
 
 sys.path.insert(0, str(pathlib.Path(__file__).resolve().parents[2] / "tools"))
 import context_token as ct  # noqa: E402
+import luminate_client as lc  # noqa: E402  (per-tenant machine-admin secrets, contract A.2.2)
 
 E = ct.read_env()
 BASE = (sys.argv[1] if len(sys.argv) > 1 else f"http://{E['LAN_HOST']}:{E.get('API_PORT', '8080')}").rstrip("/")
 KEY = E["TENANT_CONTEXT_KEY"]
-ADMIN, PASSWORD = E["INITIAL_USER_EMAIL"], E["INITIAL_USER_PASSWORD"]
+ADMIN = E["INITIAL_USER_EMAIL"]  # the password is per tenant: lc.password(tid)
 RUN = str(int(time.time()))
 results = []
 
@@ -72,7 +73,7 @@ def psql(sql, guc):
 # --- tokens carry the claim ---------------------------------------------------------------------------------------
 tok = {}
 for t in ("t-alpha", "t-beta"):
-    s, r = call("POST", "/api/auth/login", t, body={"email": ADMIN, "password": PASSWORD})
+    s, r = call("POST", "/api/auth/login", t, body={"email": ADMIN, "password": lc.password(t)})
     tok[t] = r["data"]["token"] if s == 200 else ""
     c = claims(tok[t]) if tok[t] else {}
     check(f"{t}: the login token carries tenant='{t}'", c.get("tenant") == t, str(c))

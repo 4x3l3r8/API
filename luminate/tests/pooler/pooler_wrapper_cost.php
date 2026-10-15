@@ -63,8 +63,8 @@ $useWrapper = function (bool $wrapper): void {
 $useWrapper(true);
 $login = [];
 $token = null;
-$r = measure_request($http, 'POST', '/api/auth/login', null, ['email' => getenv('INITIAL_USER_EMAIL'), 'password' => getenv('INITIAL_USER_PASSWORD')]);
-$request = Request::create('/api/auth/login', 'POST', [], [], [], ['HTTP_ACCEPT' => 'application/json', 'CONTENT_TYPE' => 'application/json'], json_encode(['email' => getenv('INITIAL_USER_EMAIL'), 'password' => getenv('INITIAL_USER_PASSWORD')]));
+$r = measure_request($http, 'POST', '/api/auth/login', null, ['email' => getenv('INITIAL_USER_EMAIL'), 'password' => getenv('PROBE_ADMIN_PASSWORD')]);
+$request = Request::create('/api/auth/login', 'POST', [], [], [], ['HTTP_ACCEPT' => 'application/json', 'CONTENT_TYPE' => 'application/json'], json_encode(['email' => getenv('INITIAL_USER_EMAIL'), 'password' => getenv('PROBE_ADMIN_PASSWORD')]));
 $token = json_decode($http->handle($request)->getContent(), true)['data']['token'] ?? null;
 
 $cases = [

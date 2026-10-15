@@ -18,6 +18,7 @@ import uuid
 
 sys.path.insert(0, str(pathlib.Path(__file__).resolve().parents[2] / "tools"))
 import context_token as ct  # noqa: E402
+import luminate_client as lc  # noqa: E402  (per-tenant machine-admin secrets, contract A.2.2)
 
 E = ct.read_env()
 BASE = f"http://{E['LAN_HOST']}:{E.get('API_PORT', '8080')}"
@@ -112,9 +113,9 @@ except Exception as e:
     print("FAIL  the test receiver is not reachable on 127.0.0.1:8099 (is docker-compose.dev.yml active?)", e)
     sys.exit(1)
 
-s, r = call("POST", "/api/auth/login", body={"email": E["INITIAL_USER_EMAIL"], "password": E["INITIAL_USER_PASSWORD"]})
+s, r = call("POST", "/api/auth/login", body={"email": E["INITIAL_USER_EMAIL"], "password": lc.password(A)})
 admin = r["data"]["token"]
-s, r = call("POST", "/api/auth/login", tid=B, body={"email": E["INITIAL_USER_EMAIL"], "password": E["INITIAL_USER_PASSWORD"]})
+s, r = call("POST", "/api/auth/login", tid=B, body={"email": E["INITIAL_USER_EMAIL"], "password": lc.password(B)})
 admin_b = r["data"]["token"]
 
 

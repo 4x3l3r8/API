@@ -6,7 +6,10 @@ namespace Luminate\Tenancy\Http\Controllers;
 
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\Log;
+use Luminate\Tenancy\Provisioning\AdminCredential;
+use Luminate\Tenancy\Provisioning\AdminSecret;
 use Luminate\Tenancy\Registry\RegistryAuth;
 use Luminate\Tenancy\Registry\RegistryPayload;
 use Luminate\Tenancy\Registry\RegistryRejected;
@@ -21,13 +24,14 @@ use Luminate\Tenancy\Registry\RegistryStore;
  *   PUT /api/luminate/registry/tenants/{tid}   {status, rev, placement}  -> {outcome: applied|unchanged|stale}   (409 conflict)
  *   GET /api/luminate/registry/tenants/{tid}                             -> {tenant_id, status, rev, placement, provisioned, ...}
  *   GET /api/luminate/registry/tenants                                   -> {tenants: [...]}   (drift checks)
+ *   POST /api/luminate/registry/tenants/{tid}/admin-credential           -> {tenant_id, email, secret, generated, rotated_at}   (contract A.2.2)
  *
  * `provisioned` is how Luminate learns a new tenant's baseline data (roles, first admin, Passport clients) is in place, before it
  * flips the tenant to `active`.
  */
 final class RegistryController
 {
-    public function __construct(private readonly RegistryAuth $auth, private readonly RegistryStore $store)
+    public function __construct(private readonly RegistryAuth $auth, private readonly RegistryStore $store, private readonly AdminCredential $credentials)
     {
     }
 
@@ -62,6 +66,56 @@ final class RegistryController
             ['tenant_id' => $tid, 'outcome' => $outcome, 'status' => $stored['status'] ?? null, 'rev' => $stored['rev'] ?? null],
             $outcome === RegistryRules::CONFLICT ? 409 : 200
         );
+    }
+
+    /**
+     * Issue or rotate the tenant's machine-admin secret (contract A.2.2). Body: empty / `{}` (Wellms generates one and returns it ONCE) or
+     * `{"secret": "..."}` (Luminate supplies it; never echoed). Every call rotates and revokes the admin's tokens. A signature can be used once.
+     */
+    public function adminCredential(Request $request, string $tid): JsonResponse
+    {
+        try {
+            $this->authenticate($request);
+            if (!RegistryPayload::validTenantId($tid)) {
+                throw RegistryRejected::invalid('tenant id is not valid');
+            }
+            $supplied = null;
+            $raw = $request->getContent();
+            if ($raw !== '') {
+                try {
+                    $data = json_decode($raw, true, 8, JSON_THROW_ON_ERROR);
+                } catch (\JsonException) {
+                    throw RegistryRejected::invalid('body is not JSON');
+                }
+                if (!is_array($data) || ($data !== [] && array_is_list($data)) || array_diff(array_keys($data), ['secret']) !== []) {
+                    throw RegistryRejected::invalid('body must be empty or {"secret": "..."}');
+                }
+                if (array_key_exists('secret', $data)) {
+                    if (($problem = AdminSecret::problem($data['secret'])) !== null) {
+                        throw RegistryRejected::invalid($problem);
+                    }
+                    $supplied = $data['secret'];
+                }
+            }
+            // a captured request must not be able to rotate the secret again, even inside the signature window
+            try {
+                $fresh = Cache::add('luminate:regcred:' . hash('sha256', (string) $request->headers->get(RegistryAuth::SIGNATURE)), 1, 600);
+            } catch (\Throwable) {
+                throw RegistryRejected::misconfigured('the replay cache is unavailable');
+            }
+            if (!$fresh) {
+                throw new RegistryRejected('registry_replayed', 'This signed request was already used.', 409);
+            }
+            $out = $this->credentials->issue($tid, $supplied);
+        } catch (RegistryRejected $e) {
+            return $this->refuse($request, $e);
+        }
+        // never the secret, never the body
+        Log::info('registry admin credential issued', ['tenant' => $tid, 'generated' => $out['generated'], 'ip' => $request->ip()]);
+
+        return response()->json([
+            'tenant_id' => $tid, 'email' => $out['email'], 'secret' => $out['secret'], 'generated' => $out['generated'], 'rotated_at' => time(),
+        ])->header('Cache-Control', 'no-store');
     }
 
     public function show(Request $request, string $tid): JsonResponse

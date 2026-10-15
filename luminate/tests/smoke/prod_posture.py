@@ -112,7 +112,8 @@ try:
         for label, env, needle in (("no registry pull url (no reconciliation safety net behind push)", "LUMINATE_REGISTRY_PULL_URL=", "registry pull url"),
                                    ("no registry key (Luminate could not push tenant changes)", "LUMINATE_REGISTRY_KEY=", "registry key"),
                                    ("a static-file replica instead of push + reconcile", "LUMINATE_REPLICA_DRIVER=file", "replica driver"),
-                                   ("no registry writer role (writes could only come from the application role)", "LUMINATE_REGISTRY_DB_USERNAME=", "writer role")):
+                                   ("no registry writer role (writes could only come from the application role)", "LUMINATE_REGISTRY_DB_USERNAME=", "writer role"),
+                                   ("a shared default machine-admin password in the environment", "INITIAL_USER_PASSWORD=SharedDefault1", "INITIAL_USER_PASSWORD")):
             rc, out, err = sh(["docker", "exec", "-e", env, "luminate-prodcheck", "php", "artisan", "luminate:tenancy:status", "--strict"])
             check(f"`--strict` FAILS with {label}", rc != 0 and needle in out, (out + err)[-200:])
 finally:

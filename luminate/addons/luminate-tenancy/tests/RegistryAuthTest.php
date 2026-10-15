@@ -111,6 +111,13 @@ final class RegistryAuthTest extends TestCase
         );
         // the pull request: GET, empty body (sha256 of the empty string), the path of the configured pull URL
         $this->assertSame('sha256=a2b3f92a8ac8017c764d504e8952a2c48eb8d63e2c1429d79c4635141c718e6c', $a->sign('1800000000', 'GET', '/registry/tenants', ''));
+        // the machine-admin credential call (POST, README "Machine-admin credential"): empty body, and a Luminate-supplied secret
+        $cred = '/api/luminate/registry/tenants/t-demo/admin-credential';
+        $this->assertSame('sha256=93f04971034d59dab5d3d915d1779a23c649cb035b9a5c65ba06465e02ce6723', $a->sign('1800000000', 'POST', $cred, ''));
+        $this->assertSame(
+            'sha256=33d5f46ccfbec598f8db900eb5c83a8b2534329995e33deea4bc3088621bf8f9',
+            $a->sign('1800000000', 'POST', $cred, '{"secret":"Luminate-Chosen.Secret_0123456789abcdef"}')
+        );
         // the pull RESPONSE: its own domain ("response." prefix), over the exact response body
         $this->assertSame('sha256=0ff6f84d73db4cad80d43c45587ff33198b271283c14bb3bb04f61d099bf3784', $a->signResponse('1800000000', '{"as_of":1800000000,"tenants":[]}'));
     }

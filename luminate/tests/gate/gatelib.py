@@ -16,12 +16,13 @@ HERE = pathlib.Path(__file__).resolve()
 LUMINATE = HERE.parents[2]
 sys.path.insert(0, str(LUMINATE / "tools"))
 import context_token as ct  # noqa: E402
+import luminate_client as lc  # noqa: E402  (per-tenant machine-admin secrets, contract A.2.2)
 
 E = ct.read_env()
 HOST = os.environ.get("LUMINATE_TEST_HOST", E["LAN_HOST"])
 PORT = int(E.get("API_PORT", "8080"))
 CTX_KEY = E["TENANT_CONTEXT_KEY"]
-ADMIN, PASSWORD = E["INITIAL_USER_EMAIL"], E["INITIAL_USER_PASSWORD"]
+ADMIN = E["INITIAL_USER_EMAIL"]
 DB = E.get("DB_NAME", "wellms")
 API = "luminate-wellms-api-1"
 METHODS = ("get", "post", "put", "patch", "delete")
@@ -99,7 +100,8 @@ def http_call(method, path, query=None, body=None, headers=None, tid=None, beare
         return Resp(0, f"{type(e).__name__}: {e}", int((time.time() - t0) * 1000))
 
 
-def login(tid, email=ADMIN, password=PASSWORD):
+def login(tid, email=ADMIN, password=None):
+    password = password or lc.password(tid)
     r = http_call("POST", "/api/auth/login", tid=tid, body={"email": email, "password": password})
     if r.status != 200 or not isinstance(r.json, dict):
         raise RuntimeError(f"login {tid}: {r.status} {r.text[:150]}")

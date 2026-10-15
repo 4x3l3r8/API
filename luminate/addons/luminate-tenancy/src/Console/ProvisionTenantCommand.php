@@ -10,6 +10,7 @@ use Illuminate\Support\Facades\DB;
 use Luminate\Tenancy\Context\ContextRejected;
 use Luminate\Tenancy\Context\TenantRuntime;
 use Luminate\Tenancy\Database\AppRoleGuard;
+use Luminate\Tenancy\Provisioning\AdminSecret;
 use Luminate\Tenancy\Registry\RegistryStore;
 use Luminate\Tenancy\Replica\TenantReplica;
 
@@ -24,10 +25,8 @@ final class ProvisionTenantCommand extends Command
 {
     protected $signature = 'luminate:tenant:provision
         {tid? : tenant id from the replica snapshot}
-        {--all : every tenant in the replica whose status is provisioning or active}
-        {--admin-email= : override the admin e-mail for this tenant}
-        {--admin-password= : override the admin password for this tenant}';
-    protected $description = 'Seed roles, permissions, the first admin and the Passport personal client for a tenant.';
+        {--all : every tenant in the replica whose status is provisioning or active}';
+    protected $description = 'Seed roles, permissions, the machine admin (WITHOUT a usable password) and the Passport clients for a tenant.';
 
     public function handle(TenantReplica $replica, TenantRuntime $runtime, AppRoleGuard $roleGuard): int
     {
@@ -63,6 +62,29 @@ final class ProvisionTenantCommand extends Command
         return $failed === 0 ? self::SUCCESS : self::FAILURE;
     }
 
+    private function withThrowawayAdminPassword(callable $seed): void
+    {
+        $previous = ['env' => $_ENV['INITIAL_USER_PASSWORD'] ?? null, 'server' => $_SERVER['INITIAL_USER_PASSWORD'] ?? null, 'getenv' => getenv('INITIAL_USER_PASSWORD')];
+        $throwaway = AdminSecret::generate();
+        $_ENV['INITIAL_USER_PASSWORD'] = $_SERVER['INITIAL_USER_PASSWORD'] = $throwaway;
+        putenv('INITIAL_USER_PASSWORD=' . $throwaway);
+        try {
+            $seed();
+        } finally {
+            if ($previous['env'] === null) {
+                unset($_ENV['INITIAL_USER_PASSWORD']);
+            } else {
+                $_ENV['INITIAL_USER_PASSWORD'] = $previous['env'];
+            }
+            if ($previous['server'] === null) {
+                unset($_SERVER['INITIAL_USER_PASSWORD']);
+            } else {
+                $_SERVER['INITIAL_USER_PASSWORD'] = $previous['server'];
+            }
+            putenv($previous['getenv'] === false ? 'INITIAL_USER_PASSWORD' : 'INITIAL_USER_PASSWORD=' . $previous['getenv']);
+        }
+    }
+
     /** Tell the registry replica this tenant's baseline exists (Luminate reads it before flipping the tenant to active). */
     private function recordProvisioned(string $tid): void
     {
@@ -75,16 +97,11 @@ final class ProvisionTenantCommand extends Command
     {
         $this->line("provisioning {$tid}");
 
-        Artisan::call('db:seed', ['--class' => 'PermissionsSeeder', '--force' => true, '--no-interaction' => true]);
-
-        // the seeder creates exactly one user (the first admin) per empty tenant; overrides apply to the lowest id
-        $adminId = DB::table('users')->where('tenant_id', $tid)->orderBy('id')->value('id');
-        if ($adminId !== null && ($email = $this->option('admin-email'))) {
-            DB::table('users')->where('id', $adminId)->where('tenant_id', $tid)->update(['email' => $email]);
-        }
-        if ($adminId !== null && ($password = $this->option('admin-password'))) {
-            DB::table('users')->where('id', $adminId)->where('tenant_id', $tid)->update(['password' => password_hash($password, PASSWORD_BCRYPT)]);
-        }
+        // The stock seeder creates the first admin of an empty tenant from INITIAL_USER_PASSWORD. That is the tenant's MACHINE admin (contract
+        // A.2.2): it must not start with any password anyone knows, so the seeder is given a throwaway that is never stored or shown, and the real
+        // credential is issued later by Luminate over the signed channel (AdminCredential). The variable is set in every place env() may read
+        // it from and removed again, so a shared value can never leak in from the process environment either.
+        $this->withThrowawayAdminPassword(static fn () => Artisan::call('db:seed', ['--class' => 'PermissionsSeeder', '--force' => true, '--no-interaction' => true]));
 
         // `escolalms/core`'s install_passport migration runs `passport:install` once, tenant-less; each tenant needs its own
         // two clients. Explicit tenant filter: never rely on RLS alone for an idempotency check.
@@ -112,7 +129,7 @@ final class ProvisionTenantCommand extends Command
         }
 
         $this->info(sprintf(
-            '%s ready: %d users, %d roles, %d permissions, %d oauth clients, %d questionnaire types',
+            '%s ready (machine admin has no credential until Luminate requests one): %d users, %d roles, %d permissions, %d oauth clients, %d questionnaire types',
             $tid,
             DB::table('users')->where('tenant_id', $tid)->count(),
             DB::table('roles')->where('tenant_id', $tid)->count(),

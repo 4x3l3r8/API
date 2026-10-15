@@ -19,8 +19,9 @@ docker compose up -d --build         # first build downloads ~260 packages (cach
 ## Calling the API (for the Luminate proxy)
 **Every request needs** `X-Tenant-Context: <token>`: a compact HS256 JWS signed with `TENANT_CONTEXT_KEY` (in `.env`; share it only with the proxy).
 Claims: `tid`, `status` (must be `active`), `placement {mode, connection, bucket, cache_prefix}`, `iat`, `exp` (<= 300 s after `iat`), `jti`.
-Dev tokens: `python -I ../tools/context_token.py --tid t-alpha`. Then log in as that tenant's admin (`POST /api/auth/login`,
-`INITIAL_USER_EMAIL`/`INITIAL_USER_PASSWORD` in `.env`); the returned user token only works for that tenant (403 otherwise).
+Dev tokens: `python -I ../tools/context_token.py --tid t-alpha`. Then log in as that tenant's machine admin (`POST /api/auth/login`, `INITIAL_USER_EMAIL` in `.env` and the tenant's **own** secret: there is no shared
+password; get one with `python -I ../tools/luminate_client.py password t-alpha`, which asks Wellms over the signed registry channel, see `../README.md`);
+the returned user token only works for that tenant (403 otherwise).
 Dev tenants: `t-alpha`, `t-beta`, `t-delta` (active), `t-gamma` (suspended).
 
 ## Dev vs production-like

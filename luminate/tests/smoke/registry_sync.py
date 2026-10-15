@@ -28,6 +28,7 @@ import uuid
 HERE = pathlib.Path(__file__).resolve()
 sys.path.insert(0, str(HERE.parents[2] / "tools"))
 import context_token as ct  # noqa: E402
+import luminate_client as lc  # noqa: E402  (per-tenant machine-admin secrets, contract A.2.2)
 
 INFRA = HERE.parents[2] / "infra"
 E = ct.read_env()
@@ -180,7 +181,7 @@ def probes(kind, tid=None):
 
 def admin_login(tid):
     tok = ct.mint(CTX_KEY, tid)
-    req = urllib.request.Request(BASE + "/api/auth/login", data=json.dumps({"email": E["INITIAL_USER_EMAIL"], "password": E["INITIAL_USER_PASSWORD"]}).encode(),
+    req = urllib.request.Request(BASE + "/api/auth/login", data=json.dumps({"email": E["INITIAL_USER_EMAIL"], "password": lc.password(tid)}).encode(),
                                  method="POST", headers={"Content-Type": "application/json", "Accept": "application/json", "X-Tenant-Context": tok})
     try:
         with urllib.request.urlopen(req, timeout=60) as r:
@@ -206,6 +207,8 @@ r = REV0
 try:
     sh(["docker", "compose", "stop", "scheduler"], cwd=INFRA)
     stub_ctl(reset=True)
+    for _t in ("t-alpha", "t-beta", "t-delta"):
+        lc.password(_t)   # fetch the machine-admin secrets NOW: a later step removes the registry table on purpose, and issuing a credential needs it
     redis("del", PROBE)
 
     # ==================================================================================================================
@@ -508,6 +511,143 @@ try:
         psql(f"revoke update on luminate_tenant_registry from {APP}", owner=True)
     rc, out, err = artisan("luminate:tenancy:status", "--json")
     check("with the grant revoked again, status raises no lockdown problem", "registry writer" not in out and "can INSERT" not in out and "can UPDATE" not in out, out[-250:])
+
+    # ==============================================================================================================================
+    print("--- H. Per-tenant machine-admin credential (contract A.2.2): unique, issued over the signed channel, rotatable, never a shared default")
+    SINCE = time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime())
+    EMAIL = E["INITIAL_USER_EMAIL"]
+    C1, C2, C3 = f"t-reg-cred1-{RUN}", f"t-reg-cred2-{RUN}", f"t-reg-cred3-{RUN}"
+    CRED = "/api/luminate/registry/tenants/{}/admin-credential"
+
+    def cred(tid, body=None, **kw):
+        return call("POST", CRED.format(tid), json.dumps(body).encode() if body is not None else b"", **kw)
+
+    def login_status(tid, secret):
+        req = urllib.request.Request(BASE + "/api/auth/login", data=json.dumps({"email": EMAIL, "password": secret}).encode(), method="POST",
+                                     headers={"Content-Type": "application/json", "Accept": "application/json", "X-Tenant-Context": ct.mint(CTX_KEY, tid)})
+        try:
+            with urllib.request.urlopen(req, timeout=60) as r:
+                return r.status, json.loads(r.read())["data"]["token"]
+        except urllib.error.HTTPError as e:
+            return e.code, None
+
+    def profile_status(tid, token):
+        req = urllib.request.Request(BASE + "/api/profile/me", headers={"Accept": "application/json", "Authorization": "Bearer " + token, "X-Tenant-Context": ct.mint(CTX_KEY, tid)})
+        try:
+            with urllib.request.urlopen(req, timeout=60) as r:
+                return r.status
+        except urllib.error.HTTPError as e:
+            return e.code
+
+    SHARED = "Shared-Default-Passw0rd-" + RUN   # what a shared env default would have been
+    for t, extra in ((C1, {}), (C2, {}), (C3, {})):
+        push(t, "provisioning", REV0 + 900)
+    s, r = cred(C1)
+    check("a tenant that is registered but NOT yet provisioned has no credential to issue (409 tenant_not_provisioned)", s == 409 and code((s, r)) == "tenant_not_provisioned", f"{s} {str(r)[:100]}")
+    # C3 is provisioned by hand WITH a shared password in the process environment, which is exactly the misconfiguration that must not matter
+    rc, out, err = artisan("luminate:tenant:provision", C3, env={"INITIAL_USER_PASSWORD": SHARED})
+    check("provisioning succeeds even with a shared INITIAL_USER_PASSWORD present in the environment", rc == 0, (out + err)[-200:])
+    check("...and that shared password does NOT log in: the machine admin starts with no credential anyone knows", login_status(C3, SHARED)[0] == 422)
+    check("...nor does any password left over from other tenants", all(login_status(C3, sec)[0] == 422 for sec in lc._load().values()))
+    check("the machine admin exists but only as an account (one admin user, role admin)", psql("select count(*) from users where email = '" + EMAIL + "'", guc=C3) == "1"
+          and psql("select count(*) from model_has_roles m join roles r on r.id = m.role_id where r.name = 'admin'", guc=C3) == "1")
+    tick()  # the scheduler provisions C1 and C2 (the normal path)
+    check("the scheduler provisioned the others", row(C1)[3] != "" and row(C2)[3] != "", f"{row(C1)} {row(C2)}")
+
+    before_alpha = psql("select md5(string_agg(password, ',' order by id)) from users where id in (select min(id) from users)", guc="t-alpha")
+    s, r1 = cred(C1)
+    s1 = r1.get("secret") if isinstance(r1, dict) else None
+    check("Wellms generates a secret and returns it once: 200, 48 random characters, the machine username, generated=true", s == 200 and s1 and len(s1) == 48 and r1["email"] == EMAIL and r1["generated"] is True, f"{s} {str(r1)[:120]}")
+    time.sleep(1.1)
+    rawreq = urllib.request.Request(BASE + CRED.format(C2), data=b"", method="POST", headers={"X-Luminate-Timestamp": str(int(time.time())), "Accept": "application/json"})
+    rawreq.add_header("X-Luminate-Signature", sign(KEY, rawreq.get_header("X-luminate-timestamp"), "POST", CRED.format(C2), b""))
+    with urllib.request.urlopen(rawreq, timeout=60) as resp:
+        hdrs, body2 = dict(resp.headers), json.loads(resp.read())
+    s2 = body2["secret"]
+    check("the response is marked no-store (it carries a secret)", "no-store" in hdrs.get("Cache-Control", ""), str(hdrs))
+    check("two tenants get DIFFERENT secrets", s1 != s2 and s1 and s2)
+    check("the issued secret logs in as that tenant's admin", login_status(C1, s1)[0] == 200 and login_status(C2, s2)[0] == 200)
+    check("...and only there: tenant 1's secret does not log into tenant 2, nor the reverse", login_status(C2, s1)[0] == 422 and login_status(C1, s2)[0] == 422)
+    check("issuing a credential changed nothing in another tenant (alpha's admin hash is untouched)",
+          psql("select md5(string_agg(password, ',' order by id)) from users where id in (select min(id) from users)", guc="t-alpha") == before_alpha)
+
+    # replay: the very same signed request, twice
+    time.sleep(1.1)
+    ts = str(int(time.time()))
+    sig = sign(KEY, ts, "POST", CRED.format(C1), b"")
+    def raw(ts_, sig_):
+        rq = urllib.request.Request(BASE + CRED.format(C1), data=b"", method="POST", headers={"X-Luminate-Timestamp": ts_, "X-Luminate-Signature": sig_, "Accept": "application/json"})
+        try:
+            with urllib.request.urlopen(rq, timeout=60) as resp:
+                return resp.status, json.loads(resp.read())
+        except urllib.error.HTTPError as e:
+            return e.code, json.loads(e.read().decode() or "null")
+    a, ra = raw(ts, sig)
+    b, rb = raw(ts, sig)
+    s_now = ra.get("secret") if a == 200 else None
+    check("a signed request works once...", a == 200 and s_now, str(ra)[:100])
+    check("...and the SAME signed request replayed is refused (409 registry_replayed): a captured request cannot rotate the secret", b == 409 and rb.get("code") == "registry_replayed", f"{b} {rb}")
+    check("the replay did not rotate it: the secret from the first call still works", login_status(C1, s_now)[0] == 200)
+    s1 = s_now
+
+    # rotation cuts off the old secret AND the tokens it produced
+    code_old, tok_old = login_status(C1, s1)
+    check("before rotation the old token works", code_old == 200 and profile_status(C1, tok_old) == 200)
+    time.sleep(1.1)
+    s, rr = cred(C1)
+    s1b = rr.get("secret")
+    check("rotating issues a new secret", s == 200 and s1b and s1b != s1)
+    check("...the OLD secret no longer logs in", login_status(C1, s1)[0] == 422)
+    check("...the NEW one does", login_status(C1, s1b)[0] == 200)
+    check("...and a token minted with the old secret is dead too (rotation is a real cut-off)", profile_status(C1, tok_old) == 401, str(profile_status(C1, tok_old)))
+
+    # Luminate supplies the secret
+    mine = "Luminate-Chosen.Secret_" + uuid.uuid4().hex
+    time.sleep(1.1)
+    s, rs = cred(C1, {"secret": mine})
+    check("a Luminate-supplied secret is accepted and NEVER echoed (secret=null, generated=false)", s == 200 and rs.get("secret") is None and rs.get("generated") is False and mine not in json.dumps(rs), str(rs)[:120])
+    check("...and it is the credential in force", login_status(C1, mine)[0] == 200 and login_status(C1, s1b)[0] == 422)
+
+    # refusals
+    for label, body, want in (("a short secret", {"secret": "tooshort"}, 422), ("a secret with a space", {"secret": "Aa1 " * 12}, 422), ("a non-string secret", {"secret": 12345678901234567890123456789012}, 422),
+                              ("an unknown field", {"secret": mine, "role": "root"}, 422), ("a JSON list", ["x"], 422)):
+        time.sleep(0.05)
+        s, rr = cred(C2, body)
+        check(f"refused (422): {label}", s == want, f"{s} {str(rr)[:100]}")
+    check("a refused request did not touch the credential", login_status(C2, s2)[0] == 200)
+    s, rr = cred(C2, None, signed=False)
+    check("unsigned request is refused (401)", s == 401)
+    time.sleep(1.1)
+    s, rr = cred(C2, None, key=CTX_KEY)
+    check("a request signed with the TENANT-CONTEXT key is refused (401): the keys are independent", s == 401)
+    s, rr = cred(C2, None, ts_off=-400)
+    check("an old timestamp is refused (401)", s == 401)
+    time.sleep(1.1)
+    s, rr = cred("t-does-not-exist", None)
+    check("an unknown tenant is 404", s == 404, f"{s} {str(rr)[:80]}")
+    push(C2, "suspended", REV0 + 901)
+    time.sleep(1.1)
+    s, rr = cred(C2, None)
+    check("a suspended tenant gets no credential (409)", s == 409, f"{s} {str(rr)[:80]}")
+    push(C2, "removed", REV0 + 902)
+    time.sleep(1.1)
+    s, rr = cred(C2, None)
+    check("a removed tenant is unknown (404)", s == 404, f"{s} {str(rr)[:80]}")
+
+    # the secret is nowhere but the response
+    time.sleep(1)
+    logs = sh(["docker", "logs", API, "--since", SINCE])[1] + sh(["docker", "logs", API, "--since", SINCE])[2] + sh(["docker", "logs", WORKER, "--since", SINCE])[1] + sh(["docker", "logs", WORKER, "--since", SINCE])[2]
+    leaked = [x for x in (s1, s1b, s2, mine, SHARED) if x and x in logs]
+    check("no secret (issued, supplied or shared) appears in any api or worker log line", not leaked, str([x[:6] for x in leaked]))
+    fj = psql(f"select count(*) from failed_jobs where payload like '%{s1b}%' or payload like '%{mine}%' or exception like '%{mine}%'")
+    check("...nor in a failed job", fj == "0", fj)
+    check("Wellms stores only a hash: no user row holds a secret in the clear", psql(f"select count(*) from users where password in ('{s1b}', '{mine}', '{s2}', '{SHARED}')", owner=True) == "0")
+    check("the issue is audited without the secret (tenant, whether generated)", "registry admin credential issued" in logs)
+
+    for t in (C1, C2, C3):
+        cur = row(t)
+        if cur and cur[0] not in ("removed", "suspended"):
+            push(t, "suspended", int(cur[1]) + 1)
 
     # leave the dev registry as found: the stub serves the dev list, the four dev tenants converge on it
     stub_ctl(reset=True)

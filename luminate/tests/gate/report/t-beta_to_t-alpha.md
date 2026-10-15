@@ -1,14 +1,14 @@
-# Isolation gate: t-beta attacking t-alpha  (run 10151454)
+# Isolation gate: t-beta attacking t-alpha  (run 10151704)
 
 Operations: 699 (439 in the OpenAPI spec; the rest are routes the spec omits).
 
 | outcome | count |
 |---|---|
-| BLOCKED | 110 |
-| LIST | 322 |
+| BLOCKED | 108 |
+| LIST | 318 |
 | NO-ROUTE | 22 |
 | NOT-FOUND-500 | 4 |
-| PROVEN | 115 |
+| PROVEN | 121 |
 | SKIPPED | 3 |
 | STOCK-DEFECT | 123 |
 
@@ -39,7 +39,6 @@ PROVEN = the victim's control request found the resource and the attack did not.
 - BLOCKED `GET /api/admin/csv/groups/{}` attack 404 control 404  ids: [('group', 'groups')]
 - LIST `GET /api/admin/csv/users` attack 422 control 422  ids: []
 - LIST `GET /api/admin/dictionaries` attack 200 control 200  ids: []
-- BLOCKED `GET /api/admin/dictionary-words/{}` attack 404 control 404  ids: [('id', 'dictionaries')]
 - LIST `GET /api/admin/file/find` attack 422 control 422  ids: []
 - LIST `GET /api/admin/file/list` attack 422 control 422  ids: []
 - LIST `GET /api/admin/hh5p/content` attack 200 control 200  ids: []
@@ -138,7 +137,6 @@ PROVEN = the victim's control request found the resource and the attack did not.
 - BLOCKED `GET /api/courses/{}/preview/{}` attack 404 control 404  ids: [('course', 'courses'), ('topic_id', 'topics')]
 - BLOCKED `GET /api/courses/{}/scorm` attack 404 control 500  ids: [('course', 'courses')]
 - LIST `GET /api/dictionaries/access` attack 200 control 200  ids: []
-- BLOCKED `GET /api/dictionaries/{}/words/{}` attack 404 control 404  ids: [('slug', 'dictionaries'), ('id', None)]
 - LIST `GET /api/events` attack 200 control 200  ids: []
 - LIST `GET /api/health` attack 200 control 200  ids: []
 - LIST `GET /api/healthcheck` attack 200 control 200  ids: []
@@ -305,6 +303,7 @@ PROVEN = the victim's control request found the resource and the attack did not.
 - BLOCKED `POST /api/consultations/finish-term/{}` attack 423 control 423  ids: [('consultationTermId', 'consultations')]
 - BLOCKED `POST /api/consultations/report-term/{}` attack 422 control 422  ids: [('consultationTermId', 'consultations')]
 - BLOCKED `POST /api/consultations/save-screen` attack 422 control 422  ids: []
+- BLOCKED `POST /api/course-access-enquiries` attack 422 control 400  ids: []
 - LIST `POST /api/hh5p/files/{}` attack 422 control 422  ids: [('nonce', None)]
 - LIST `POST /api/hh5p/filter` attack 422 control 422  ids: []
 - LIST `POST /api/hh5p/libraries` attack 200 control 200  ids: []
@@ -354,17 +353,15 @@ PROVEN = the victim's control request found the resource and the attack did not.
 - LIST `POST /trax/api/{}/xapi/std/agents/profile` attack 423 control 423  ids: [('source', None)]
 - LIST `POST /trax/api/{}/xapi/std/statements` attack 423 control 423  ids: [('source', None)]
 - BLOCKED `PUT /api/admin/consultations/{}` attack 422 control 422  ids: [('consultation', 'consultations')]
-- BLOCKED `PUT /api/admin/dictionary-words/{}` attack 404 control 404  ids: [('id', 'dictionaries')]
 - BLOCKED `PATCH /api/admin/lessons/{}` attack 403 control 422  ids: [('lesson', 'lessons')]
 - BLOCKED `PUT /api/admin/lessons/{}` attack 403 control 422  ids: [('lesson', 'lessons')]
 - BLOCKED `PUT /api/admin/products/{}` attack 404 control 500  ids: [('id', 'products')]
 - BLOCKED `PATCH /api/admin/question/{}` attack 404 control 404  ids: [('id', 'topic_gift_questions')]
 - BLOCKED `PATCH /api/admin/questionnaire/assign/{}/{}/{}/{}` attack 404 control 404  ids: [('model_type_title', None), ('model_id', None), ('id', None), ('target_group', 'groups')]
 - BLOCKED `PATCH /api/admin/questionnaire/{}` attack 404 control 422  ids: [('id', 'questionnaires')]
-- LIST `PATCH /api/admin/quiz-answers/{}` attack 404 control 200  ids: [('id', None)]
+- LIST `PATCH /api/admin/quiz-answers/{}` attack 404 control 404  ids: [('id', None)]
 - BLOCKED `PATCH /api/admin/roles/{}` attack 404 control 404  ids: [('name', None)]
 - BLOCKED `PUT /api/admin/stationary-events/{}` attack 404 control 422  ids: [('id', 'stationary_events')]
-- BLOCKED `PATCH /api/admin/tasks/notes/{}` attack 404 control 404  ids: [('id', None)]
 - LIST `PATCH /api/admin/templates/{}` attack 422 control 422  ids: [('id', None)]
 - LIST `PATCH /api/admin/topic-project-solutions/{}/feedback` attack 404 control 404  ids: [('id', None)]
 - LIST `PATCH /api/admin/topic-project-solutions/{}/grade` attack 404 control 404  ids: [('id', None)]
@@ -393,7 +390,6 @@ PROVEN = the victim's control request found the resource and the attack did not.
 - LIST `PUT /api/profile/me-auth` attack 422 control 422  ids: []
 - LIST `PUT /api/profile/password` attack 422 control 422  ids: []
 - LIST `PUT /api/profile/settings` attack 200 control 200  ids: []
-- BLOCKED `PATCH /api/tasks/notes/{}` attack 404 control 404  ids: [('id', None)]
 - LIST `PUT /oauth/clients/{}` attack 401 control 401  ids: [('client_id', None)]
 - LIST `PATCH /trax/api/{}/xapi/ext/activities/{}` attack 423 control 423  ids: [('source', None), ('activity', None)]
 - LIST `PUT /trax/api/{}/xapi/ext/activities/{}` attack 423 control 423  ids: [('source', None), ('activity', None)]
@@ -409,8 +405,7 @@ PROVEN = the victim's control request found the resource and the attack did not.
 - LIST `PUT /trax/api/{}/xapi/std/statements` attack 423 control 423  ids: [('source', None)]
 - BLOCKED `DELETE /api/admin/categories/{}` attack 403 control 423  ids: [('category', 'categories')]
 - LIST `DELETE /api/admin/cmi5/{}` attack 404 control 404  ids: [('id', None)]
-- LIST `DELETE /api/admin/course-access-enquiries/{}` attack 404 control 200  ids: [('id', None)]
-- BLOCKED `DELETE /api/admin/dictionary-words/{}` attack 404 control 404  ids: [('id', 'dictionaries')]
+- BLOCKED `DELETE /api/admin/dictionary-words/{}` attack 404 control 404  ids: [('id', 'dictionary_words')]
 - LIST `DELETE /api/admin/file/delete` attack 422 control 422  ids: []
 - LIST `DELETE /api/admin/hh5p/content/{}` attack 404 control 404  ids: [('id', None)]
 - LIST `DELETE /api/admin/hh5p/library/{}` attack 404 control 404  ids: [('id', None)]
@@ -421,7 +416,6 @@ PROVEN = the victim's control request found the resource and the attack did not.
 - LIST `DELETE /api/admin/roles/{}` attack 200 control 200  ids: [('name', None)]
 - LIST `DELETE /api/admin/scorm/{}` attack 404 control 404  ids: [('scormModel', None)]
 - LIST `DELETE /api/admin/tags` attack 404 control 404  ids: []
-- LIST `DELETE /api/admin/tasks/notes/{}` attack 404 control 200  ids: [('id', None)]
 - LIST `DELETE /api/admin/templates/{}` attack 404 control 404  ids: [('id', None)]
 - LIST `DELETE /api/admin/topic-project-solutions/{}` attack 404 control 404  ids: [('id', None)]
 - BLOCKED `DELETE /api/admin/topics/{}/resources/{}` attack 404 control 404  ids: [('topic_id', 'topics'), ('resource_id', None)]
@@ -437,12 +431,12 @@ PROVEN = the victim's control request found the resource and the attack did not.
 - BLOCKED `DELETE /api/cart/products/{}` attack 422 control 422  ids: [('id', 'products')]
 - LIST `DELETE /api/cart/voucher` attack 200 control 200  ids: []
 - LIST `DELETE /api/consultation-access-enquiries/{}` attack 404 control 404  ids: [('id', None)]
-- LIST `DELETE /api/course-access-enquiries/{}` attack 404 control 404  ids: [('id', None)]
+- BLOCKED `DELETE /api/course-access-enquiries/{}` attack 404 control 404  ids: [('id', 'course_access_enquiries')]
 - LIST `DELETE /api/payments-gateways/callback/refund/{}` attack 404 control 404  ids: [('payment', None)]
 - LIST `DELETE /api/payments-gateways/callback/{}` attack 404 control 404  ids: [('payment', None)]
 - LIST `DELETE /api/profile` attack 423 control 423  ids: []
 - LIST `DELETE /api/profile/delete-avatar` attack 422 control 422  ids: []
-- LIST `DELETE /api/tasks/notes/{}` attack 404 control 404  ids: [('id', None)]
+- BLOCKED `DELETE /api/tasks/notes/{}` attack 404 control 404  ids: [('id', 'task_notes')]
 - LIST `DELETE /api/topic-project-solutions/{}` attack 404 control 404  ids: [('id', None)]
 - LIST `DELETE /oauth/authorize` attack 401 control 401  ids: []
 - LIST `DELETE /oauth/clients/{}` attack 401 control 401  ids: [('client_id', None)]

@@ -23,7 +23,8 @@ import uuid
 
 sys.path.insert(0, str(pathlib.Path(__file__).resolve().parent))
 sys.path.insert(0, str(pathlib.Path(__file__).resolve().parents[2] / "tools"))
-import context_token as ct  # noqa: E402
+import context_token as ct
+import luminate_client as lc  # noqa: E402
 
 ap = argparse.ArgumentParser()
 ap.add_argument("--seconds", type=int, default=40, help="minimum run time")
@@ -101,7 +102,7 @@ def wait_ready(seconds=120):
     """Right after a container is recreated the API answers 502 for a while. Wait for the first real answer; never retries later requests."""
     t0 = time.time()
     while time.time() - t0 < seconds:
-        s, r = call("POST", "/api/auth/login", TENANTS[0], body={"email": E["INITIAL_USER_EMAIL"], "password": E["INITIAL_USER_PASSWORD"]})
+        s, r = call("POST", "/api/auth/login", TENANTS[0], body={"email": E["INITIAL_USER_EMAIL"], "password": lc.password(TENANTS[0])})
         if s == 200 and isinstance(r, dict):
             if time.time() - t0 > 2:
                 print(f"INFO  waited {time.time() - t0:.0f}s for the API to start serving")
@@ -116,7 +117,7 @@ wait_ready()
 # ---- setup -----------------------------------------------------------------------------------------------------------------------------
 admin, student, course = {}, {}, {}
 for t in TENANTS:
-    s, r = call("POST", "/api/auth/login", t, body={"email": E["INITIAL_USER_EMAIL"], "password": E["INITIAL_USER_PASSWORD"]})
+    s, r = call("POST", "/api/auth/login", t, body={"email": E["INITIAL_USER_EMAIL"], "password": lc.password(t)})
     admin[t] = r["data"]["token"]
     s, r = call("POST", "/api/admin/courses", t, admin[t], {"title": f"load-{RUN}-{t}", "status": "published"})
     course[t] = r["data"]["id"]

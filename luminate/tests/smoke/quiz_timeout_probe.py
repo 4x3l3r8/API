@@ -19,6 +19,7 @@ import uuid
 
 sys.path.insert(0, str(pathlib.Path(__file__).resolve().parents[2] / "tools"))
 import context_token as ct  # noqa: E402
+import luminate_client as lc  # noqa: E402  (per-tenant machine-admin secrets, contract A.2.2)
 
 E = ct.read_env()
 BASE = f"http://{E['LAN_HOST']}:{E.get('API_PORT', '8080')}"
@@ -78,7 +79,7 @@ def psql(sql, guc=TID):
 
 
 # --- setup: an admin, a course with a 1-minute quiz of two auto-graded questions, five students --------------------------
-s, r = call("POST", "/api/auth/login", body={"email": E["INITIAL_USER_EMAIL"], "password": E["INITIAL_USER_PASSWORD"]})
+s, r = call("POST", "/api/auth/login", body={"email": E["INITIAL_USER_EMAIL"], "password": lc.password(TID)})
 admin = r["data"]["token"]
 s, r = call("POST", "/api/admin/courses", bearer=admin, body={"title": f"timeout-probe-{RUN}", "status": "published"})
 course = r["data"]["id"]
@@ -189,7 +190,7 @@ check("control: the immediate job for 'submitall' DID run and moved end_at (so a
 
 # (1b) which events would the job dispatch?  Direct probe with the dispatcher faked.
 sh(["docker", "cp", str(pathlib.Path(__file__).with_name("quiz_events_probe.php")), "luminate-wellms-api-1:/tmp/quiz_events_probe.php"])
-s, r = call("POST", "/api/auth/login", body={"email": E["INITIAL_USER_EMAIL"], "password": E["INITIAL_USER_PASSWORD"]})
+s, r = call("POST", "/api/auth/login", body={"email": E["INITIAL_USER_EMAIL"], "password": lc.password(TID)})
 control = {"token": students["open"]["token"]}
 # control: a brand-new attempt that is still OPEN (we use a second quiz attempt by a fresh student would race the clock; instead restart 'ended' student? max_attempts=5)
 s, r = call("POST", "/api/quiz-attempts", bearer=students["ended"]["token"], body={"topic_gift_quiz_id": quiz})
@@ -234,7 +235,7 @@ check("(2) filter by user_id returns that user's timed-out attempt", s == 200 an
 s, r = call("GET", f"/api/admin/quiz-attempts?topic_gift_quiz_id={quiz}&per_page=2&page=2", bearer=admin)
 check("(2) pagination works (per_page=2, page=2)", s == 200 and len(r["data"]) == 2 and r["meta"]["total"] >= 6, f"{s} {str(r)[:160]}")
 s, r = call("GET", f"/api/admin/quiz-attempts?topic_gift_quiz_id={quiz}&per_page=50", tid=OTHER, bearer=None)
-s2, rb = call("POST", "/api/auth/login", tid=OTHER, body={"email": E["INITIAL_USER_EMAIL"], "password": E["INITIAL_USER_PASSWORD"]})
+s2, rb = call("POST", "/api/auth/login", tid=OTHER, body={"email": E["INITIAL_USER_EMAIL"], "password": lc.password(OTHER)})
 s3, r3 = call("GET", f"/api/admin/quiz-attempts?topic_gift_quiz_id={quiz}&per_page=50", tid=OTHER, bearer=rb["data"]["token"])
 check("(2) tenant isolation: t-beta's admin sees none of t-alpha's attempts", s3 == 200 and not any(x["id"] in mine for x in r3["data"]), f"{s3} {len(r3['data']) if isinstance(r3, dict) else r3}")
 

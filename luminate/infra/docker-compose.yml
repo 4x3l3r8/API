@@ -40,7 +40,7 @@ x-wellms-env: &wellms-env
   AWS_URL: http://${LAN_HOST}:${S3_PORT:-9000}/${S3_BUCKET:-wellms}
   AWS_USE_PATH_STYLE_ENDPOINT: "true"
   INITIAL_USER_EMAIL: ${INITIAL_USER_EMAIL:?}
-  INITIAL_USER_PASSWORD: ${INITIAL_USER_PASSWORD:?}
+  # NO shared admin password: each tenant's machine admin gets a unique secret issued over the signed channel (contract A.2.2).
   JWT_PUBLIC_KEY_BASE64: ${JWT_PUBLIC_KEY_BASE64:?}
   JWT_PRIVATE_KEY_BASE64: ${JWT_PRIVATE_KEY_BASE64:?}
   # luminate/tenancy (contract v3 §A.1)
