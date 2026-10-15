@@ -396,7 +396,7 @@ try:
 
     # tombstoning: absent from the listing AND not touched since before the snapshot was cut
     stub_ctl(reset=True, tenants=listing({}), mode="ok", as_of=None)
-    psql(f"update luminate_tenant_registry set updated_at = updated_at - 1000 where tenant_id = '{PULL}'")
+    psql(f"update luminate_tenant_registry set updated_at = updated_at - 1000 where tenant_id = '{PULL}'", owner=True)  # the application role can no longer write the registry (A.2.3)
     rc, ev, raw = reconcile()
     check("a tenant the listing no longer holds (and that nothing touched recently) is tombstoned, not deleted", PULL in ev.get("removed", []) and row(PULL)[0] == "removed" and row(PULL)[2] == "absent", raw[-300:])
     pending_pull = [e for e in tick()[1] if e.get("tenant") == PULL]
@@ -430,7 +430,7 @@ try:
     check("status shows the tenants by status and none pending provisioning", "active" in reg.get("tenants", {}) and reg.get("pending_provision") == [], str(reg)[:300])
     check("with a fresh reconcile, status does not call the replica stale", not [p for p in st.get("problems", []) if "stale" in p], str(st.get("problems")))
 
-    psql("update luminate_registry_meta set v = (extract(epoch from now())::bigint - 100000)::text where k = 'pull_ok_at'")
+    psql("update luminate_registry_meta set v = (extract(epoch from now())::bigint - 100000)::text where k = 'pull_ok_at'", owner=True)
     rc, out, err = artisan("luminate:tenancy:status", "--json", "--allow-privileged")
     check("a replica not reconciled for hours is REPORTED as stale (and status exits non-zero)", rc != 0 and "registry replica is stale" in out, out[-300:])
     rc, ev, raw = reconcile()
@@ -456,6 +456,58 @@ try:
         psql("alter table luminate_tenant_registry_off rename to luminate_tenant_registry", owner=True)
     rc, evs, tk = tick()
     check("renamed back: the scheduler resumes", rc == 0 and {e["tenant"] for e in evs if e.get("event") == "scheduler.ran"} >= {"t-alpha", "t-beta", "t-delta"}, tk[-300:])
+
+    # ==============================================================================================================================
+    print("--- G. Write lockdown (contract A.2.3): the application role cannot rewrite the registry")
+    REG_USER, REG_PW = E.get("DB_REGISTRY_USER", "wellms_registry"), E["DB_REGISTRY_PASSWORD"]
+    TABLES = ("luminate_tenant_registry", "luminate_registry_meta")
+
+    def psql_as(user, pw, sql):
+        rc, out, err = sh(["docker", "exec", "-i", "-e", f"PGPASSWORD={pw}", "luminate-wellms-postgres-1", "psql", "-h", "127.0.0.1", "-U", user, "-d", DB, "-At", "-q", "-v", "ON_ERROR_STOP=1"], stdin=sql)
+        return rc, (out + err)
+
+    row_sql = f"insert into luminate_tenant_registry (tenant_id,status,rev,mode,connection,bucket,cache_prefix,source,created_at,updated_at) values ('t-evil','active',1,'pooled','shard-1','wellms','t-evil','push',1,1)"
+    attempts = {
+        "INSERT a tenant": row_sql, "UPDATE a tenant (reactivate a suspended one)": "update luminate_tenant_registry set status='active'",
+        "DELETE a tenant": "delete from luminate_tenant_registry", "TRUNCATE the registry": "truncate luminate_tenant_registry",
+        "rewrite the reconcile bookkeeping": "update luminate_registry_meta set v='x'", "DROP the registry": "drop table luminate_tenant_registry",
+        "GRANT itself write access": f"grant all on luminate_tenant_registry to {APP}",
+    }
+    before = registry_rows()
+    for label, sql in attempts.items():
+        rc, out = psql_as(APP, E["DB_APP_PASSWORD"], sql)
+        if label.startswith("GRANT"):  # Postgres only WARNS when a non-owner grants; what matters is that nothing was granted
+            has = psql(f"select has_table_privilege('{APP}', 'luminate_tenant_registry', 'UPDATE')", owner=True)
+            check("as the application role: cannot GRANT itself write access (nothing is granted)", has == "f", out[-120:])
+            continue
+        check(f"as the application role: cannot {label}", rc != 0 and ("permission denied" in out or "must be owner" in out), out[-120:])
+    check("...and the registry is untouched by all of them", registry_rows() == before and row("t-evil") is None)
+    rc, out = psql_as(APP, E["DB_APP_PASSWORD"], "select count(*) from luminate_tenant_registry")
+    check("the application role can still READ the registry (workers and the scheduler depend on it)", rc == 0 and int(out.strip()) > 0, out)
+    for label, sql in (("read users", "select count(*) from users"), ("insert a user", "insert into users (id) values (999999)"),
+                       ("read oauth tokens", "select count(*) from oauth_access_tokens"), ("create a table", "create table evil (x int)")):
+        rc, out = psql_as(REG_USER, REG_PW, sql)
+        check(f"as the registry WRITER role: cannot {label} (it can touch nothing but the registry)", rc != 0 and "permission denied" in out, out[-120:])
+    rc, out = psql_as(REG_USER, REG_PW, "update luminate_tenant_registry set updated_at = updated_at where false")
+    check("the writer role can write the registry", rc == 0, out)
+    others = psql(f"select count(*) from information_schema.role_table_grants where grantee = '{REG_USER}' and table_name not in ('luminate_tenant_registry','luminate_registry_meta')", owner=True)
+    check("the writer role holds no grant on any other table", others == "0", others)
+    check("the writer role cannot serve tenant work at all: it is in the forbidden-roles list", REG_USER in sh(["docker", "exec", API, "printenv", "LUMINATE_TENANCY_FORBIDDEN_DB_USERS"])[1].split(","))
+    rc, out, err = sh(["docker", "exec", WORKER, "printenv", "LUMINATE_REGISTRY_DB_USERNAME"])
+    check("the queue worker has no writer credentials at all (least privilege)", out.strip() == "", out)
+    snap2 = {"version": 1, "tenants": {f"t-reg-nowriter-{RUN}": {"status": "active", "placement": {"mode": "pooled", "connection": "shard-1", "bucket": "wellms", "cache_prefix": f"t-reg-nowriter-{RUN}"}}}}
+    sh(["docker", "exec", "-i", "-u", "www-data", API, "sh", "-c", "cat > /tmp/seed2.json"], stdin=json.dumps(snap2))
+    rc, out, err = artisan("luminate:registry:import", "/tmp/seed2.json", env={"LUMINATE_REGISTRY_DB_USERNAME": ""})
+    check("with no writer role configured, writes fail closed instead of falling back to the application role", rc != 0 and "registry writer" in (out + err) and row(f"t-reg-nowriter-{RUN}") is None, (out + err)[-200:])
+
+    psql(f"grant update on luminate_tenant_registry to {APP}", owner=True)
+    try:
+        rc, out, err = artisan("luminate:tenancy:status", "--json")
+        check("if the application role ever regains write access, status reports it (and exits non-zero)", rc != 0 and "can UPDATE luminate_tenant_registry" in out, out[-250:])
+    finally:
+        psql(f"revoke update on luminate_tenant_registry from {APP}", owner=True)
+    rc, out, err = artisan("luminate:tenancy:status", "--json")
+    check("with the grant revoked again, status raises no lockdown problem", "registry writer" not in out and "can INSERT" not in out and "can UPDATE" not in out, out[-250:])
 
     # leave the dev registry as found: the stub serves the dev list, the four dev tenants converge on it
     stub_ctl(reset=True)

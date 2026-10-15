@@ -111,7 +111,8 @@ try:
         check("`luminate:tenancy:status --strict` passes in the production-like container", rc == 0 and "OK" in out, (out + err)[-300:])
         for label, env, needle in (("no registry pull url (no reconciliation safety net behind push)", "LUMINATE_REGISTRY_PULL_URL=", "registry pull url"),
                                    ("no registry key (Luminate could not push tenant changes)", "LUMINATE_REGISTRY_KEY=", "registry key"),
-                                   ("a static-file replica instead of push + reconcile", "LUMINATE_REPLICA_DRIVER=file", "replica driver")):
+                                   ("a static-file replica instead of push + reconcile", "LUMINATE_REPLICA_DRIVER=file", "replica driver"),
+                                   ("no registry writer role (writes could only come from the application role)", "LUMINATE_REGISTRY_DB_USERNAME=", "writer role")):
             rc, out, err = sh(["docker", "exec", "-e", env, "luminate-prodcheck", "php", "artisan", "luminate:tenancy:status", "--strict"])
             check(f"`--strict` FAILS with {label}", rc != 0 and needle in out, (out + err)[-200:])
 finally:
@@ -196,7 +197,8 @@ finally:
 
 print(f"INFO  sessions observed by role: {seen}")
 check("the sampler actually saw application sessions (the check is not vacuous)", seen.get(APP, 0) >= 5, str(seen))
-check("every observed session belonged to the app role", set(seen) == {APP}, str(seen))
+REG = E.get("DB_REGISTRY_USER", "wellms_registry")
+check("every observed session belonged to the app role or the registry WRITER (which can touch nothing else); never the owner or the superuser", set(seen) <= {APP, REG} and APP in seen, str(seen))
 check("no session was ever the owner or the bootstrap superuser", OWNER not in seen and BOOT not in seen and "postgres" not in seen, str(seen))
 
 print(f"\n{sum(results)}/{len(results)} passed")

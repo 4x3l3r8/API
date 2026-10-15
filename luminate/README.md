@@ -31,6 +31,8 @@ Contract: `docs/LMS_INTEGRATION_CONTRACT.md` (v3). Where this deviates or extend
 | Grades ride on the pull: `is_fully_graded` on the attempts list/detail (contract v5 §F) | one key added to the response by a middleware (no core patch), one query per page | `webhooks_e2e.py`, `quiz_timeout_probe.py` |
 | Wellms never autonomously moves money (contract §H) | cart/subscription schedule events skipped; the renewal jobs are refused by the worker | `ops_guards.py` |
 | `failed_jobs` (global, un-tenanted) does not grow forever | `luminate:maintenance`, hourly from the scheduler service, outside any tenant; 14 days by default | `ops_guards.py` |
+| Every operation is isolated (the release gate, Batch 6): 699 operations (439 spec + 260 unspecced routes), V1 no context / V2 token binding / V3 attack with the victim's real ids, independent owner-role oracle, both directions | `tests/gate/isolation_gate.py` (`make gate`) | `tests/gate/README.md` |
+| The application role cannot rewrite the tenant registry (contract A.2.3) | writes log in as a separate writer role; the app role is SELECT-only; `status` fails if that regresses | `registry_sync.py` section G, `prod_posture.py` |
 | Safe behind PgBouncer in TRANSACTION pooling (contract §H): no tenant setting survives its transaction; works with statements outside a transaction | `SET LOCAL` per transaction; `PDO::PGSQL_ATTR_DISABLE_PREPARES` (`PgsqlOptions`); `docker-compose.pgbouncer.yml` | `pooler_isolation.py`, `pooler_interleaved_load.py`, every other suite re-run through the pooler |
 
 ## Running the suites
@@ -112,25 +114,84 @@ e.g. inside the built image with `--entrypoint sh`). All suites are re-runnable 
   "final" is `is_ended && is_fully_graded`. Suggested wording for §F.
 - `topic_type` in `topic.completed` is Wellms' own `topicable_type` (the model class), exactly as its API exposes it.
 
-## Registry sync, proposed wire shape (for §A.2; not yet in the contract)
-The contract names push-on-change plus a reconciliation pull but defines neither. Built as follows, and the Luminate side needs to match it:
-- **Auth, both directions:** `X-Luminate-Timestamp: <unix s>` and `X-Luminate-Signature: sha256=hex(HMAC(registry_key, "{ts}.{METHOD}.{path}.{sha256hex(body)}"))`.
-  The key is `LUMINATE_REGISTRY_KEY` (current + previous for rotation) and **must differ from the tenant-context key** (a shared key disables sync). 300 s window.
-  Method and path are inside the signature, so a captured push cannot be replayed at another tenant.
-- **Push:** `PUT /api/luminate/registry/tenants/{tid}` with `{"status": "provisioning|active|suspended|removed", "rev": <int>, "placement": {mode, connection, bucket, cache_prefix}}`.
-  `200 {outcome: applied|unchanged|stale}`, `409 conflict` (same rev, different content), `422` invalid, `401` bad signature. No tenant-context header (these routes create tenants).
-  `GET .../tenants/{tid}` and `GET .../tenants` (signed) return the replica row including `provisioned`, which Luminate should wait on before flipping a tenant to `active`.
-- **`rev`:** Luminate's monotonic per-tenant revision. **It must never decrease for a tenant id, including across delete and recreate.** Wellms only moves forward, so a late
-  "active" cannot undo a newer "suspended" (push or pull). An explicit `removed` is a tombstone and needs a strictly newer rev to undo.
-- **Pull:** Wellms does `GET {LUMINATE_REGISTRY_PULL_URL}` (signed as above) every `LUMINATE_REGISTRY_RECONCILE_INTERVAL` (300 s), from the scheduler. Luminate answers
-  `{"as_of": <unix s>, "tenants": [{"tenant_id", "status", "rev", "placement"}, ...]}` with **response** headers `X-Luminate-Timestamp` and
-  `X-Luminate-Signature: sha256=hex(HMAC(key, "response." + ts + "." + sha256hex(body)))`, so a forged list is refused even over bad transport.
-  All-or-nothing: one malformed entry, a bad signature, an `as_of` in the future, or an empty list (unless `--allow-empty`) rejects the whole pull and changes nothing.
-  A tenant absent from the list is tombstoned (`removed`), never deleted, unless something touched it within 120 s before `as_of` (an in-flight push is safe).
-- **Provisioning:** a tenant that appears (push or pull) as `provisioning` or `active` is provisioned by the scheduler within a tick; no operator step.
-- **Staleness:** reported (`luminate:tenancy:status`), never enforced; the replica cache in a worker is 2 s. Requests never read the replica (the signed context token decides).
+## Registry sync wire shape (AUTHORITATIVE; mirrored into contract §A.2.1)
+Everything Luminate must reproduce byte for byte. The unit test `RegistryAuthTest::testPublishedVectors` pins the vectors below to the code.
+
+**Signature (both directions).** Two headers on every registry request:
+- `X-Luminate-Timestamp`: the current Unix time in whole seconds, decimal digits only (`^\d{1,12}$`), e.g. `1800000000`. Accepted within +/-300 s of the receiver's clock.
+- `X-Luminate-Signature`: `sha256=` + 64 **lower-case** hex characters of `HMAC-SHA256(key, message)`, where
+  `message = "{timestamp}.{METHOD}.{path}.{sha256hex(body)}"`:
+  - `{timestamp}` is the header value, verbatim.
+  - `{METHOD}` is upper-case (`PUT`, `GET`).
+  - `{path}` is the request path exactly as sent on the wire: leading `/`, **no query string, no host**, no normalisation (e.g. `/api/luminate/registry/tenants/t-demo`).
+  - `{sha256hex(body)}` is the lower-case hex SHA-256 of the **raw request body bytes** as sent; for a request with no body it is the SHA-256 of the empty string
+    (`e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855`). Sign the bytes you send; do not re-serialise JSON.
+  - The four parts are joined with a single `.`. The key is `LUMINATE_REGISTRY_KEY` (UTF-8 bytes); the receiver also accepts `LUMINATE_REGISTRY_KEY_PREVIOUS` (rotation).
+    The key **must differ from the tenant-context key**: with equal keys registry sync is disabled and answers `503 registry_disabled`.
+
+Vectors (key `registry-test-key`, timestamp `1800000000`):
+```
+PUT  /api/luminate/registry/tenants/t-demo
+body {"status":"active","rev":7,"placement":{"mode":"pooled","connection":"shard-1","bucket":"wellms","cache_prefix":"t-demo"}}
+sha256(body) = c29cb0624cd419a5477435efe0bd114fec568f148a5fbb1f6dbb1036cce6a9c9
+message      = 1800000000.PUT./api/luminate/registry/tenants/t-demo.c29cb0624cd419a5477435efe0bd114fec568f148a5fbb1f6dbb1036cce6a9c9
+signature    = sha256=d2b4a9a7ca25e01f057991a0d10c365e56cb0c6661640d83d1b633c982173988
+
+GET  /registry/tenants   (what Wellms sends when pulling; the path of the configured pull URL)
+message      = 1800000000.GET./registry/tenants.e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855
+signature    = sha256=a2b3f92a8ac8017c764d504e8952a2c48eb8d63e2c1429d79c4635141c718e6c
+
+pull RESPONSE body {"as_of":1800000000,"tenants":[]}      (note the "response." prefix; no method, no path)
+message      = response.1800000000.6b9c8680f313340e329d4c18ec8ffa8f14dc10f42ca0abf1e668b3f980387a1c
+signature    = sha256=0ff6f84d73db4cad80d43c45587ff33198b271283c14bb3bb04f61d099bf3784
+```
+
+**Entry (push body, and each element of the pull list).** Field names and types are exact; unknown fields are ignored on push.
+```
+{ "status":    "provisioning" | "active" | "suspended" | "removed",
+  "rev":       <integer >= 0>,
+  "placement": { "mode": "pooled" | "dedicated", "connection": <opaque name>, "bucket": <bucket[/prefix]>, "cache_prefix": <string> } }
+```
+Pull elements add `"tenant_id"`. Patterns (the same ones the context token is held to): `tenant_id` and `cache_prefix` `^[A-Za-z0-9][A-Za-z0-9._:-]{0,63}$`;
+`connection` `^[A-Za-z0-9][A-Za-z0-9._-]{0,63}$` (no `:` `/` `@`, so a DSN cannot be smuggled in); `bucket` `^[A-Za-z0-9][A-Za-z0-9._/-]{0,254}$` with no `..`, no `//`, no trailing `/`.
+
+**Push** `PUT /api/luminate/registry/tenants/{tid}`, `Content-Type: application/json`, no `X-Tenant-Context`. A body `tenant_id`, if present, must equal the path.
+
+| answer | meaning |
+|---|---|
+| `200 {"tenant_id","outcome":"applied or unchanged or stale","status","rev"}` | `status` and `rev` are what is stored after the call |
+| `409` (same body shape, `"outcome":"conflict"`) | same `rev`, different content: refused, nothing changed |
+| `422 {"message","code":"registry_payload_invalid"}` | invalid entry |
+| `401 {"code"}` with code `registry_signature_missing`, `registry_signature_invalid`, `registry_timestamp_invalid` or `registry_timestamp_expired` | bad authentication |
+| `503 {"code"}` with code `registry_disabled` or `registry_misconfigured` | no usable key, or no registry writer role |
+
+**Read (signed, same headers).** `GET /api/luminate/registry/tenants/{tid}` returns `{"tenant_id","status","rev","placement","provisioned":bool,"provisioned_at":int|null,"updated_at":int}`
+(`404 registry_tenant_unknown`); `GET /api/luminate/registry/tenants` returns `{"tenants":[ ...same shape... ]}` including `removed` tombstones.
+
+**Ordering (`rev`).** Per tenant, Wellms only moves forward: `rev` lower than stored -> `stale`; equal and identical -> `unchanged`; equal and different -> `409`; higher -> `applied`.
+`rev` **must never decrease for a tenant id, including across delete and recreate.** A tenant stored as `removed` by an explicit push needs a **strictly higher** `rev` to come back;
+one tombstoned because a pull did not list it comes back at an equal or higher `rev`.
+
+**Pull.** Wellms `GET`s `LUMINATE_REGISTRY_PULL_URL` (https unless `LUMINATE_REGISTRY_ALLOW_HTTP`; redirects are not followed) with the request signature above, every
+`LUMINATE_REGISTRY_RECONCILE_INTERVAL` seconds (300). Luminate answers `200`, `Content-Type: application/json`, a body of exactly
+`{"as_of": <unix seconds>, "tenants": [ {"tenant_id", "status", "rev", "placement"}, ... ]}` (a JSON **list**, no duplicate `tenant_id`) and the **response** headers
+`X-Luminate-Timestamp` and `X-Luminate-Signature` (the `response.` domain above). All-or-nothing: a non-200, a bad or missing response signature or timestamp, a malformed body or entry,
+a duplicate id, an `as_of` more than 120 s in the future, or an **empty list** (unless the operator passes `--allow-empty`) rejects the whole pull and changes nothing.
+A tenant the list omits becomes `removed` (never deleted) unless something touched it less than 120 s before `as_of`.
+
+**Provisioning and staleness.** A tenant that appears as `provisioning` or `active` is provisioned within a scheduler tick; wait for `provisioned: true` on the signed `GET` before flipping it
+to `active`. Staleness is reported by `luminate:tenancy:status`, never enforced; a worker's replica cache is 2 s; requests never read the replica.
+
+**Write lockdown (contract §A.2.3).** The application role is read-only on the replica. Every write (push, pull, the provisioned flag, pull bookkeeping) logs in as a dedicated writer role
+(`DB_REGISTRY_USER`, connection `luminate_registry`) that can touch nothing else. `luminate:tenancy:status` fails if the application role can write, and `--strict` also requires
+the writer to be configured and forbidden for tenant work.
 
 ## Known gaps and unknowns
+- **Must before prod, not built:** per-tenant bootstrap admin (contract A.2.2). Provisioning still creates each tenant's first admin from the shared env credential. Needs a decision on how the unique credential
+  reaches the tenant (Wellms has no forced-change flag; options are a one-time reset link to an admin e-mail supplied with the tenant, or a generated secret returned once to Luminate over the signed channel).
+- **Gate coverage gaps (see `tests/gate/README.md`):** about 320 operations have no victim id to attack (collections, or types the seeder cannot create: xAPI/Trax LRS stores, payments, templates, ...).
+  They still get V1, V2, the leak scan and the write check. About 120 operations are 5xx in stock Wellms for the victim's own request too (Passport web routes call `viaRemember`; nothing runs).
+  Two endpoints (`*/signed-screen-urls`) accept a foreign `webinar_id`/`consultation_id` in the body and return a signed URL under the attacker's own tenant prefix (no victim data returned).
 - **Cost of per-statement scoping:** about 0.62 ms per statement outside a transaction on this host; material for chatty requests and linear in network round-trip time.
   Options, none built: merge BEGIN + set_config into one round trip (about 27 to 32 percent of the overhead, a small change to the connection class), cut Wellms'
   statement count per request (its role/permission loading is an N+1: 208 statements for a cold users list), run PgBouncer next to the app, or scope a whole read-only

@@ -51,7 +51,11 @@ x-wellms-env: &wellms-env
   LUMINATE_TENANCY_EXEMPT_PATHS: ${LUMINATE_TENANCY_EXEMPT_PATHS:-}
   LUMINATE_TENANCY_TEST_FIXTURES: ${LUMINATE_TENANCY_TEST_FIXTURES:-false}
   # Request, job and provisioning work refuses to run if its DB user is one of these (the owner is for migrations only).
-  LUMINATE_TENANCY_FORBIDDEN_DB_USERS: ${DB_OWNER_USER:-wellms_owner},${DB_BOOTSTRAP_USER:-db_bootstrap}
+  LUMINATE_TENANCY_FORBIDDEN_DB_USERS: ${DB_OWNER_USER:-wellms_owner},${DB_BOOTSTRAP_USER:-db_bootstrap},${DB_REGISTRY_USER:-wellms_registry}
+  # Registry write-lockdown (contract A.2.3): the app role is read-only on the replica; writes log in as this role instead.
+  LUMINATE_APP_DB_USER: ${DB_APP_USER:-wellms_app}
+  LUMINATE_REGISTRY_DB_USERNAME: ${DB_REGISTRY_USER:-wellms_registry}
+  LUMINATE_REGISTRY_DB_PASSWORD: ${DB_REGISTRY_PASSWORD:?run bootstrap.ps1}
   LUMINATE_TENANCY_CONNECTIONS: ${LUMINATE_TENANCY_CONNECTIONS:-shard-1=pgsql}
   LUMINATE_TENANCY_BUCKETS: ${S3_BUCKET:-wellms}
   # Signed webhooks to the Luminate receiver (contract v4 §F). Off until LUMINATE_WEBHOOK_URL is set; the secret is always
@@ -83,6 +87,8 @@ services:
       DB_OWNER_PASSWORD: ${DB_OWNER_PASSWORD:?}
       DB_APP_USER: ${DB_APP_USER:-wellms_app}
       DB_APP_PASSWORD: ${DB_APP_PASSWORD:?}
+      DB_REGISTRY_USER: ${DB_REGISTRY_USER:-wellms_registry}
+      DB_REGISTRY_PASSWORD: ${DB_REGISTRY_PASSWORD:?run bootstrap.ps1}
     volumes:
       - pgdata:/var/lib/postgresql/data
       - ./postgres/init:/docker-entrypoint-initdb.d:ro
@@ -219,6 +225,8 @@ services:
       DB_USERNAME: ${DB_APP_USER:-wellms_app}
       DB_PASSWORD: ${DB_APP_PASSWORD}
       DISABLE_PHP_FPM: "true"
+      LUMINATE_REGISTRY_DB_PASSWORD: ""   # least privilege: the worker never writes the registry
+      LUMINATE_REGISTRY_DB_USERNAME: ""
       # The stock scheduler loop runs `schedule:run` with NO tenant; every job it dispatches would be refused. The
       # per-tenant scheduler (luminate:schedule:work, driven by the replica) replaces it.
       DISABLE_SCHEDULER: "true"

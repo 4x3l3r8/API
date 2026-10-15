@@ -146,8 +146,13 @@ check("alpha's user is intact afterwards (not modified, not deleted)", s == 200 
 # --- roles / permissions are per tenant -------------------------------------------------------------------------
 sr, ra = call("GET", "/api/admin/roles", "t-alpha", tok["t-alpha"])
 sb2, rb2 = call("GET", "/api/admin/roles", "t-beta", tok["t-beta"])
-check("each tenant sees its own 3 roles (not 6)", sr == 200 and sb2 == 200 and len(ra.get("data", [])) == len(rb2.get("data", [])) and len(ra.get("data", [])) <= 3,
-      f"alpha={len(ra.get('data', [])) if isinstance(ra, dict) else ra} beta={len(rb2.get('data', [])) if isinstance(rb2, dict) else rb2}")
+ra_ids = {r["id"] for r in (ra.get("data") or [])} if isinstance(ra, dict) else set()
+rb_ids = {r["id"] for r in (rb2.get("data") or [])} if isinstance(rb2, dict) else set()
+std = {"admin", "tutor", "student"}
+check("each tenant has its OWN roles: the three standard ones, and not one role id in common (the gate adds more, so no fixed count)",
+      sr == 200 and sb2 == 200 and ra_ids and rb_ids and not (ra_ids & rb_ids)
+      and std <= {r["name"] for r in ra["data"]} and std <= {r["name"] for r in rb2["data"]},
+      f"alpha={sorted(ra_ids)} beta={sorted(rb_ids)}")
 
 print(f"\n{sum(results)}/{len(results)} passed")
 sys.exit(0 if all(results) else 1)

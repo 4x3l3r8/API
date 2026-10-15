@@ -99,6 +99,13 @@ return [
             'previous' => env('LUMINATE_REGISTRY_KEY_PREVIOUS'),
         ],
         'window' => (int) env('LUMINATE_REGISTRY_WINDOW', 300), // accepted timestamp skew, seconds
+        // Write lockdown (contract A.2.3). The application role is READ-ONLY on the registry tables; every write goes through a second
+        // connection that logs in as this dedicated writer role (which can touch nothing else). Unset = nothing can write: fail closed.
+        'db' => [
+            'username' => env('LUMINATE_REGISTRY_DB_USERNAME'),
+            'password' => env('LUMINATE_REGISTRY_DB_PASSWORD'),
+            'app_role' => env('LUMINATE_APP_DB_USER'),  // the role the migration makes read-only
+        ],
         'pull_url' => env('LUMINATE_REGISTRY_PULL_URL'),         // empty = no pull (push only)
         'allow_http' => filter_var(env('LUMINATE_REGISTRY_ALLOW_HTTP', false), FILTER_VALIDATE_BOOLEAN), // dev only
         'timeout' => (int) env('LUMINATE_REGISTRY_TIMEOUT', 10),

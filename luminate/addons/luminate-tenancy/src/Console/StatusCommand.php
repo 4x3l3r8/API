@@ -72,6 +72,9 @@ final class StatusCommand extends Command
         }
 
         $registry = $this->registryReport($problems);
+        if (!$this->option('allow-privileged')) {
+            $this->checkRegistryLockdown($conn, $problems);
+        }
 
         $report = [
             'connection' => $conn::class,
@@ -162,5 +165,32 @@ final class StatusCommand extends Command
         }
 
         return $report;
+    }
+
+    /**
+     * Contract A.2.3: the application role must not be able to write the registry (SQL injection under any tenant would otherwise
+     * rewrite tenant status and placement), and a writer role must be configured and must not be usable for tenant work.
+     *
+     * @param list<string> $problems
+     */
+    private function checkRegistryLockdown(object $conn, array &$problems): void
+    {
+        if (config('luminate-tenancy.replica_driver') !== 'database') {
+            return;
+        }
+        foreach (['luminate_tenant_registry', 'luminate_registry_meta'] as $table) {
+            foreach (['INSERT', 'UPDATE', 'DELETE', 'TRUNCATE'] as $priv) {
+                $has = $conn->selectOne('select has_table_privilege(current_user, ?, ?) as ok', [$table, $priv]);
+                if ($has->ok) {
+                    $problems[] = "the application role can {$priv} {$table}: writes must go through the registry writer role (contract A.2.3)";
+                }
+            }
+        }
+        $writer = (string) config('luminate-tenancy.registry.db.username');
+        if ($writer === '') {
+            $problems[] = 'no registry writer role is configured (LUMINATE_REGISTRY_DB_USERNAME): the registry cannot be written';
+        } elseif (!in_array($writer, (array) config('luminate-tenancy.forbidden_db_users', []), true) && $this->option('strict')) {
+            $problems[] = "the registry writer role '{$writer}' is not in the forbidden-roles list: a misconfigured process could serve tenant work as it";
+        }
     }
 }

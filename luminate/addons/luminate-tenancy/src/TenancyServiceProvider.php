@@ -159,6 +159,16 @@ final class TenancyServiceProvider extends ServiceProvider
         $this->app->singleton(TenantTokenBinding::class);
         $this->app->singleton(VerifyTenantContext::class);
 
+        // The registry writer connection (contract A.2.3): the default connection's settings, a different login.
+        $writer = (string) $this->app['config']['luminate-tenancy.registry.db.username'];
+        if ($writer !== '') {
+            $default = (string) $this->app['config']['database.default'];
+            $this->app['config']->set('database.connections.' . DatabaseRegistryStore::WRITER, array_merge(
+                (array) $this->app['config']["database.connections.{$default}"],
+                ['username' => $writer, 'password' => (string) $this->app['config']['luminate-tenancy.registry.db.password']]
+            ));
+        }
+
         // Behind PgBouncer in transaction mode, pdo_pgsql's named server-side prepared statements abort the transaction (see PgsqlOptions).
         // Applied before any connection exists. Identical behaviour over a direct connection, so it is on in every topology.
         if ((bool) $this->app['config']['luminate-tenancy.pooler_safe_prepares']) {

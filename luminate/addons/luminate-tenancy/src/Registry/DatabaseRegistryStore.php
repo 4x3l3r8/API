@@ -5,16 +5,32 @@ declare(strict_types=1);
 namespace Luminate\Tenancy\Registry;
 
 use Illuminate\Database\QueryException;
+use Illuminate\Database\Connection;
 use Illuminate\Support\Facades\DB;
 
 /**
- * Postgres implementation. The tables are registered as tenancy-exempt before they are created (see the migration), so the DDL
+ * Postgres implementation. WRITES go through a separate connection (`luminate_registry`) that logs in as a dedicated writer role; the
+ * application role is read-only on these tables (contract A.2.3). So SQL injection or a mass-assignment bug under any tenant, all of
+ * which run as the application role, cannot rewrite tenant status or placement. READS use the ordinary connection.
+ *
+ * The tables are registered as tenancy-exempt before they are created (see the migration), so the DDL
  * event trigger leaves them tenant-less and these statements run with or without an active tenant.
  */
 final class DatabaseRegistryStore implements RegistryStore
 {
     public const TABLE = 'luminate_tenant_registry';
     public const META = 'luminate_registry_meta';
+    public const WRITER = 'luminate_registry';
+
+    /** @throws RegistryRejected when no writer role is configured: without it nothing can change the registry (fail closed) */
+    private function writer(): Connection
+    {
+        if (config('database.connections.' . self::WRITER) === null) {
+            throw RegistryRejected::misconfigured('no registry writer database role is configured (LUMINATE_REGISTRY_DB_USERNAME / _PASSWORD)');
+        }
+
+        return DB::connection(self::WRITER);
+    }
 
     public function find(string $tid): ?array
     {
@@ -37,8 +53,10 @@ final class DatabaseRegistryStore implements RegistryStore
     {
         for ($try = 0; ; $try++) {
             try {
-                return DB::transaction(function () use ($tid, $incoming, $source, $now): string {
-                    $locked = DB::selectOne('select * from ' . self::TABLE . ' where tenant_id = ? for update', [$tid]);
+                $w = $this->writer();
+
+                return $w->transaction(function () use ($w, $tid, $incoming, $source, $now): string {
+                    $locked = $w->selectOne('select * from ' . self::TABLE . ' where tenant_id = ? for update', [$tid]);
                     $stored = $locked === null ? null : self::row($locked);
                     $outcome = RegistryRules::decide($stored, $incoming);
                     if ($outcome !== RegistryRules::APPLIED) {
@@ -55,9 +73,9 @@ final class DatabaseRegistryStore implements RegistryStore
                         'updated_at' => $now,
                     ];
                     if ($stored === null) {
-                        DB::table(self::TABLE)->insert(['tenant_id' => $tid, 'created_at' => $now] + $values);
+                        $w->table(self::TABLE)->insert(['tenant_id' => $tid, 'created_at' => $now] + $values);
                     } else {
-                        DB::table(self::TABLE)->where('tenant_id', $tid)->update($values);
+                        $w->table(self::TABLE)->where('tenant_id', $tid)->update($values);
                     }
 
                     return $outcome;
@@ -73,14 +91,15 @@ final class DatabaseRegistryStore implements RegistryStore
 
     public function tombstoneAbsent(array $presentTids, int $touchedBefore, int $now): array
     {
-        $q = DB::table(self::TABLE)->where('status', '<>', 'removed')->where('updated_at', '<', $touchedBefore);
+        $w = $this->writer();
+        $q = $w->table(self::TABLE)->where('status', '<>', 'removed')->where('updated_at', '<', $touchedBefore);
         if ($presentTids !== []) {
             $q->whereNotIn('tenant_id', $presentTids);
         }
         $tids = $q->pluck('tenant_id')->map(fn ($t) => (string) $t)->all();
         foreach ($tids as $tid) {
             // re-check inside the update: it is the same predicate, so a push that landed since the select is not overwritten
-            DB::table(self::TABLE)->where('tenant_id', $tid)->where('status', '<>', 'removed')->where('updated_at', '<', $touchedBefore)
+            $w->table(self::TABLE)->where('tenant_id', $tid)->where('status', '<>', 'removed')->where('updated_at', '<', $touchedBefore)
                 ->update(['status' => 'removed', 'source' => RegistryRules::SOURCE_ABSENT, 'updated_at' => $now]);
         }
 
@@ -89,7 +108,7 @@ final class DatabaseRegistryStore implements RegistryStore
 
     public function markProvisioned(string $tid, int $now): void
     {
-        DB::table(self::TABLE)->where('tenant_id', $tid)->whereNull('provisioned_at')->update(['provisioned_at' => $now]);
+        $this->writer()->table(self::TABLE)->where('tenant_id', $tid)->whereNull('provisioned_at')->update(['provisioned_at' => $now]);
     }
 
     public function pendingProvision(): array
@@ -105,8 +124,9 @@ final class DatabaseRegistryStore implements RegistryStore
             $set['ok_at'] = (string) $now;
             $set['as_of'] = (string) ($asOf ?? 0);
         }
+        $w = $this->writer();
         foreach ($set as $k => $v) {
-            DB::table(self::META)->updateOrInsert(['k' => 'pull_' . $k], ['v' => $v]);
+            $w->table(self::META)->updateOrInsert(['k' => 'pull_' . $k], ['v' => $v]);
         }
     }
 

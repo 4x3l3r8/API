@@ -44,6 +44,7 @@ $gen = @{
     DB_BOOTSTRAP_PASSWORD  = New-Secret
     DB_OWNER_PASSWORD      = New-Secret
     DB_APP_PASSWORD        = New-Secret
+    DB_REGISTRY_PASSWORD   = New-Secret
     REDIS_PASSWORD         = New-Secret
     MINIO_ROOT_PASSWORD    = New-Secret
     S3_SECRET_KEY          = New-Secret 30
