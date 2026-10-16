@@ -141,7 +141,10 @@ if args.seed_only:
 log("collecting the victim's unique values and fingerprints (owner role)")
 vals_b = g.text_values(tables, B)
 vals_a = g.text_values(tables, A)
-UNIQUE = {v: src for v, src in vals_b.items() if v not in vals_a}
+# PHP class names (morph types such as EscolaLms\Courses\Models\Course) are code constants every deployment serves (e.g. GET /api/admin/topics/types lists them),
+# not tenant data: one tenant simply happens to have rows of a type the other has not used yet. They cannot carry a leak, so they are not "victim-only".
+CODE_CONSTANT = re.compile(r"^[A-Za-z_][A-Za-z0-9_]*(?:\\[A-Za-z_][A-Za-z0-9_]*)+$")
+UNIQUE = {v: src for v, src in vals_b.items() if v not in vals_a and not CODE_CONSTANT.match(v)}
 MARKERS = [B + ".test", f"GM{B.replace('-', '')}"]
 log(f"  {len(UNIQUE)} values exist only in {B}; {len(vals_a)} in {A}")
 POOL_B, POOL_A = pools(B), pools(A)
@@ -151,6 +154,17 @@ for t, ids_ in list(POOL_B.items()):
     POOL_B[t] = [i for i in ids_ if i not in a_ids]
 IDS_B = g.Ids(POOL_B, tables)
 IDS_A = g.Ids(POOL_A, tables)
+
+
+def course_topic_pairs(tid):
+    """(course, topic) pairs that belong together, file topics first: a path with both parameters must address ONE real topic or it proves nothing."""
+    rows = g.psql(f"select l.course_id || '|' || t.id from topics t join lessons l on l.id = t.lesson_id and l.tenant_id = t.tenant_id where t.tenant_id = '{tid}' "
+                  f"order by (t.topicable_type like '%PDF') desc, t.id limit 12").split()
+    return [tuple(r.split("|")) for r in rows if r]
+
+
+IDS_B.pairs = course_topic_pairs(B)
+IDS_A.pairs = course_topic_pairs(A)
 log(f"  victim rows by table (tables with data): {len([t for t in POOL_B if POOL_B[t]])}; attacker: {len([t for t in POOL_A if POOL_A[t]])}")
 
 fp0 = g.fingerprint(tables, B)
@@ -291,6 +305,7 @@ if not args.no_controls:
     log("control phase: the same requests as the victim on its own data")
     POOL_B2 = {k: v for k, v in pools(B).items()}
     IDS_C = g.Ids(POOL_B2, tables)
+    IDS_C.pairs = course_topic_pairs(B)
     btok = token(B, True)
     byk = {r["key"]: r for r in results}
     for i, op in enumerate(todo, 1):

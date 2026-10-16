@@ -25,8 +25,10 @@ x-wellms-env: &wellms-env
   QUEUE_DRIVER: redis
   SESSION_DRIVER: cookie
   BROADCAST_DRIVER: "null"
-  MAIL_MAILER: log
-  MAIL_DRIVER: log
+  # Contract v12 section H: Wellms sends NO learner communications in the integrated deployment (Luminate owns all onboarding and
+  # notifications). The array mailer discards every message; unlike 'log' it leaves no learner email on disk.
+  MAIL_MAILER: array
+  MAIL_DRIVER: array
   TRACKER_ENABLED: "false"
   SENTRY_DSN: ""
   FILESYSTEM_DRIVER: s3
@@ -43,7 +45,7 @@ x-wellms-env: &wellms-env
   # NO shared admin password: each tenant's machine admin gets a unique secret issued over the signed channel (contract A.2.2).
   JWT_PUBLIC_KEY_BASE64: ${JWT_PUBLIC_KEY_BASE64:?}
   JWT_PRIVATE_KEY_BASE64: ${JWT_PRIVATE_KEY_BASE64:?}
-  # luminate/tenancy (contract v3 §A.1)
+  # luminate/tenancy (contract v3 Â§A.1)
   TENANT_CONTEXT_KEY: ${TENANT_CONTEXT_KEY:?run bootstrap.ps1}
   TENANT_CONTEXT_KEY_PREVIOUS: ${TENANT_CONTEXT_KEY_PREVIOUS:-}
   # Secure by default: NO path is served without a context token and no test fixtures exist. docker-compose.dev.yml
@@ -58,21 +60,21 @@ x-wellms-env: &wellms-env
   LUMINATE_REGISTRY_DB_PASSWORD: ${DB_REGISTRY_PASSWORD:?run bootstrap.ps1}
   LUMINATE_TENANCY_CONNECTIONS: ${LUMINATE_TENANCY_CONNECTIONS:-shard-1=pgsql}
   LUMINATE_TENANCY_BUCKETS: ${S3_BUCKET:-wellms}
-  # Signed webhooks to the Luminate receiver (contract v4 §F). Off until LUMINATE_WEBHOOK_URL is set; the secret is always
+  # Signed webhooks to the Luminate receiver (contract v4 Â§F). Off until LUMINATE_WEBHOOK_URL is set; the secret is always
   # required so a URL can never be configured without one. https only, unless docker-compose.dev.yml allows http for the test receiver.
   LUMINATE_WEBHOOK_URL: ${LUMINATE_WEBHOOK_URL:-}
   LUMINATE_WEBHOOK_SECRET: ${LUMINATE_WEBHOOK_SECRET:?run bootstrap.ps1}
   LUMINATE_WEBHOOK_ALLOW_HTTP: ${LUMINATE_WEBHOOK_ALLOW_HTTP:-false}
   LUMINATE_WEBHOOK_BACKOFF: ${LUMINATE_WEBHOOK_BACKOFF:-60,300,1800,7200,21600}
   LUMINATE_WEBHOOK_MAX_AGE: ${LUMINATE_WEBHOOK_MAX_AGE:-86400}
-  # Registry replica (contract §A.2): tenants are pushed by Luminate (PUT /api/luminate/registry/tenants/{tid}) and reconciled by a
+  # Registry replica (contract Â§A.2): tenants are pushed by Luminate (PUT /api/luminate/registry/tenants/{tid}) and reconciled by a
   # periodic signed pull. The key is NOT the tenant-context key. No pull URL = push only (production sets one: it is the safety net).
   LUMINATE_REGISTRY_KEY: ${LUMINATE_REGISTRY_KEY:?run bootstrap.ps1}
   LUMINATE_REGISTRY_KEY_PREVIOUS: ${LUMINATE_REGISTRY_KEY_PREVIOUS:-}
   LUMINATE_REGISTRY_PULL_URL: ${LUMINATE_REGISTRY_PULL_URL:-}
   LUMINATE_REGISTRY_ALLOW_HTTP: ${LUMINATE_REGISTRY_ALLOW_HTTP:-false}
   LUMINATE_REGISTRY_RECONCILE_INTERVAL: ${LUMINATE_REGISTRY_RECONCILE_INTERVAL:-300}
-  # Wellms must never autonomously move money (contract §H): its commerce schedule and renewal jobs are off by default
+  # Wellms must never autonomously move money (contract Â§H): its commerce schedule and renewal jobs are off by default
   # (LUMINATE_DISABLED_SCHEDULES / LUMINATE_DENIED_JOBS in the add-on config). failed_jobs is pruned after this many hours.
   LUMINATE_FAILED_JOBS_RETENTION_HOURS: ${LUMINATE_FAILED_JOBS_RETENTION_HOURS:-336}
 

@@ -58,6 +58,15 @@ def run(tid, token, mark, n, log):
             if quiz:
                 g.http_call("PUT", f"/api/admin/gift-quizes/{quiz}", tid=tid, bearer=token(), body={"value": f"Q_{m}", "max_attempts": 5, "max_execution_time": 60, "counts_to_grade": True})
                 call("giftq", "POST", "/api/admin/gift-questions", {"topic_gift_quiz_id": quiz, "score": 1, "order": 1, "value": f"2+2? {{=4}}"})
+        if lid:  # a topic with a real file, so the protected media route has something to deliver
+            pdf_bytes = b"%PDF-1.4" + bytes([10]) + (f"pdf_{m}_".encode() * 400)
+            r = g.http_call("POST", "/api/admin/topics", tid=tid, bearer=token(), timeout=120, multipart=[
+                ("title", f"pdf_{m}"), ("lesson_id", str(lid)), ("order", "3"), ("active", "1"), ("topicable_type", "EscolaLms" + BS + "TopicTypes" + BS + "Models" + BS + "TopicContent" + BS + "PDF"),
+                ("value", (f"pdf_{m}.pdf", pdf_bytes, "application/pdf"))])
+            if r.status in (200, 201):
+                made.setdefault("pdftopic", []).append(r.json["data"]["id"])
+            else:
+                fails.append(f"pdftopic: {r.status} {r.text[:120]}")
         email = f"student_{m}@{tid}.gate.test".lower()
         u = call("student", "POST", "/api/admin/users", {"first_name": f"stu_{m}", "last_name": "S", "email": email, "password": "Gate-Passw0rd!x1", "return_url": "http://localhost/", "verified": True})
         if u:

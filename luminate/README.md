@@ -32,6 +32,7 @@ Contract: `docs/LMS_INTEGRATION_CONTRACT.md` (v3). Where this deviates or extend
 | Wellms never autonomously moves money (contract §H) | cart/subscription schedule events skipped; the renewal jobs are refused by the worker | `ops_guards.py` |
 | `failed_jobs` (global, un-tenanted) does not grow forever | `luminate:maintenance`, hourly from the scheduler service, outside any tenant; 14 days by default | `ops_guards.py` |
 | Every operation is isolated (the release gate, Batch 6): 699 operations (439 spec + 260 unspecced routes), V1 no context / V2 token binding / V3 attack with the victim's real ids, independent owner-role oracle, both directions | `tests/gate/isolation_gate.py` (`make gate`) | `tests/gate/README.md` |
+| Protected media delivery: the learner's file is streamed through the API (range requests), course access enforced, the tenant's storage prefix enforced on the READ, never cached across users | `MediaController`, `MediaStore`, `ByteRange` | `media_delivery.py`, `ByteRangeTest`, the gate |
 | The application role cannot rewrite the tenant registry (contract A.2.3) | writes log in as a separate writer role; the app role is SELECT-only; `status` fails if that regresses | `registry_sync.py` section G, `prod_posture.py` |
 | Safe behind PgBouncer in TRANSACTION pooling (contract §H): no tenant setting survives its transaction; works with statements outside a transaction | `SET LOCAL` per transaction; `PDO::PGSQL_ATTR_DISABLE_PREPARES` (`PgsqlOptions`); `docker-compose.pgbouncer.yml` | `pooler_isolation.py`, `pooler_interleaved_load.py`, every other suite re-run through the pooler |
 
@@ -215,10 +216,36 @@ signature = sha256=33d5f46ccfbec598f8db900eb5c83a8b2534329995e33deea4bc3088621bf
 ```
 Dev: `tools/luminate_client.py` plays Luminate's side (`python -I luminate/tools/luminate_client.py password t-alpha`); a git-ignored file stands in for Luminate's secret store, and every suite fetches its tenants' secrets through it.
 
+## Protected media delivery (contract §D.6 fallback)
+`GET /api/courses/{course_id}/topics/{topic_id}/media` streams the file of a PDF, Video, Audio or Image topic from the tenant's storage. The bucket stays private and the browser never
+touches it: Luminate's proxy calls this route with the learner's impersonated bearer token (or the tenant machine admin, for tutor preview) and relays the bytes.
+
+- **Auth and tenant:** ordinary bearer token (`auth:api`) plus the verified `X-Tenant-Context` like every route. The tenant comes only from the context token: it sets the database scope (RLS) and the storage prefix.
+- **Access rule:** Wellms' own `CoursesPolicy::attend` (admin; owner or attend permission; or a **published** course the user has). Checked on the course *before* the topic, so a user without access cannot probe topic ids.
+- **Answers:** `200` or `206` with the bytes; `304` (If-None-Match); `416` (`Content-Range: bytes */size`); `401` no or bad token; `403` no access to the course; `404` unknown course, a topic that is not in that course, a topic with no file, a missing object, or a stored path
+  that may not be read. JSON errors carry `code` (`media_forbidden`, `media_not_found`). Non-numeric ids are not routed (404). `HEAD` works.
+- **Ranges:** `Range: bytes=a-b | a- | -n` gives `206` with `Content-Range` and the clamped length; a start past the end gives `416`; several ranges, a malformed `Range`, or `last < first` are answered with the whole file (allowed by RFC 9110).
+  `If-Range` (strong ETag or HTTP date) that does not match the current object also gives the whole file, never a splice.
+- **Headers always sent:** `Accept-Ranges: bytes`, `Content-Length`, `ETag` (the object's), `Last-Modified`, `Content-Type` (from storage, else the extension), `Cache-Control: private, no-cache`, `Vary: Authorization, X-Tenant-Context`,
+  `X-Content-Type-Options: nosniff`, `Content-Security-Policy: sandbox; default-src 'none'`, and `Content-Disposition: inline` with a sanitised name. Luminate overrides the type from the topic kind, so a wrong one is not a security issue.
+- **Streaming:** the object is described with one HEAD and read by byte range in 64 KB chunks; nothing is buffered and nothing is redirected. A 200 MB object delivered with the first byte after 0.55 s and the API container staying near 158 MB.
+- **Tenant prefix enforced on the READ:** the disk applies the tenant's key prefix (from the context token), and `MediaStore` checks the final key again before requesting a byte. A stored path that could escape (`..`, absolute, `//`, a URL, a backslash, a control character) is refused without touching storage,
+  and a resolved key outside `tenants/<tid>/` is a critical log and a 404. Tested with the other tenant's real object path stored in the database in eight hostile forms.
+- **No cross-user or cross-tenant caching:** `private, no-cache` + `Vary`, the route is not behind Wellms' response cache, and the tests read an allowed response and then a denied one for the same URL.
+- **Wellms query cache (good to know):** Wellms caches model queries in Redis (tenant-prefixed, flushed by model events). A change made with raw SQL behind the application's back is not seen until the cache is flushed or expires; a change made through the API flushes it.
+- **Verified by:** `tests/smoke/media_delivery.py` (57 checks), `ByteRangeTest` (46 unit tests), and the isolation gate, which now attacks this route (a real PDF topic is seeded in each tenant).
+- **Stock limitation found on the way:** Wellms cannot create an Image topic against a private bucket (its upload handler runs `getimagesize()` on the public URL, which the bucket refuses): another face of gap 11. The test writes the image row and object directly.
+
+**§D.6 open question: a resource-scoped, <= 300 s direct token.** Can the engine mint one? **Yes, technically:** S3 presigned GET URLs are bound to one object key (already inside `tenants/<tid>/`), read-only, and the lifetime is capped at 300 s; Wellms already mints them
+(`Storage::temporaryUrl`). **Reachable from learner browsers? Not today.** Measured on the live stack: they are signed for the *internal* origin `http://minio:9000` (the Docker service name), so a browser cannot use them (reached at the published host with its own Host header: 403;
+only a client that forges `Host: minio:9000` gets 200); and the plain public URL answers 403 anonymously, as intended. A SigV4 signature covers the `Host` header, so the fix is not a URL rewrite: presign with a client configured for the **public** media origin (a public MinIO/S3 endpoint
+or a CDN/ingress that forwards the signed Host), add bucket CORS for `Range`, and put the same course-access check in front of the mint step. That is a separate piece of work; the proxy-stream route above is the working path until then.
+
 ## Known gaps and unknowns
 - **Gate coverage gaps (see `tests/gate/README.md`):** about 320 operations have no victim id to attack (collections, or types the seeder cannot create: xAPI/Trax LRS stores, payments, templates, ...).
   They still get V1, V2, the leak scan and the write check. About 120 operations are 5xx in stock Wellms for the victim's own request too (Passport web routes call `viaRemember`; nothing runs).
-  Two endpoints (`*/signed-screen-urls`) accept a foreign `webinar_id`/`consultation_id` in the body and return a signed URL under the attacker's own tenant prefix (no victim data returned).
+  A few write endpoints (`*/signed-screen-urls`, role and group creation, category sort) return 2xx when given a victim's id in the body; in every case nothing of the victim is returned or changed and the database shows no dangling cross-tenant reference
+  (checked on role-permission, role-model and group-parent links). `signed-screen-urls` returns a presigned URL under the caller's own tenant prefix, for a real or a made-up id alike.
 - **Cost of per-statement scoping:** about 0.62 ms per statement outside a transaction on this host; material for chatty requests and linear in network round-trip time.
   Options, none built: merge BEGIN + set_config into one round trip (about 27 to 32 percent of the overhead, a small change to the connection class), cut Wellms'
   statement count per request (its role/permission loading is an N+1: 208 statements for a cold users list), run PgBouncer next to the app, or scope a whole read-only

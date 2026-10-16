@@ -249,6 +249,8 @@ final class TenancyServiceProvider extends ServiceProvider
 
         // Registry push endpoints (contract §A.2): no tenant context, authenticated by their own HMAC.
         $this->loadRoutesFrom(__DIR__ . '/../routes/registry.php');
+        // Protected media delivery: stream a topic's file from the tenant's storage (contract D.6 fallback).
+        $this->loadRoutesFrom(__DIR__ . '/../routes/media.php');
 
         $kernel = $this->app->make(HttpKernel::class);
         $kernel->prependMiddleware(VerifyTenantContext::class);

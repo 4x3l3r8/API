@@ -31,8 +31,8 @@ TRACE = os.environ.get("GATE_TRACE")
 
 # ---- HTTP ---------------------------------------------------------------------------------------------------------------
 class Resp:
-    def __init__(self, status, text, ms, headers=None):
-        self.status, self.text, self.ms, self.headers = status, text, ms, headers or {}
+    def __init__(self, status, text, ms, headers=None, raw=b""):
+        self.status, self.text, self.ms, self.headers, self.raw = status, text, ms, headers or {}, raw
         try:
             self.json = json.loads(text) if text and text.lstrip()[:1] in "[{" else None
         except Exception:
@@ -92,8 +92,8 @@ def http_call(method, path, query=None, body=None, headers=None, tid=None, beare
         c = http.client.HTTPConnection(HOST, PORT, timeout=timeout)
         c.request(method.upper(), url, body=data, headers=h)
         r = c.getresponse()
-        raw = r.read().decode("utf-8", "replace")
-        out = Resp(r.status, raw, int((time.time() - t0) * 1000), dict(r.getheaders()))
+        body = r.read()
+        out = Resp(r.status, body.decode("utf-8", "replace"), int((time.time() - t0) * 1000), dict(r.getheaders()), body)
         c.close()
         return out
     except Exception as e:  # timeout, reset: reported, never swallowed silently
@@ -286,10 +286,12 @@ class Ids:
 
     def __init__(self, pools, tables):
         self.pools, self.tables = pools, tables
+        self.pairs = []  # [(course_id, topic_id)] that really belong together, so a path with both params addresses one real topic
         self.used = []   # (field, table, id) picked for query/body fields, so a caller can tell which victim ids went into a request
 
     def pick(self, op, param, previous_segment):
         name = param if param not in ("id", "uuid", "slug") else previous_segment
+        name = re.sub(r"(?<=.)_?id$", "", name)   # course_id -> course
         names = [name] if name not in OVERRIDES else [OVERRIDES[name], name]
         for nm in names:
             if nm in self.tables:
@@ -332,6 +334,17 @@ def concrete(op, ids, rng, which=0):
             val = "1"
         used.append((param, table, val))
         path = path.replace("{" + m.group(1) + "}", quote(str(val), safe=""), 1)
+    if ids.pairs and any(re.fullmatch(r"course(_id)?", p) for p, _, _ in used) and any(re.fullmatch(r"topic(_id)?", p) for p, _, _ in used):
+        c, tp = ids.pairs[which % len(ids.pairs)]
+        path = op.template
+        for p, _, _ in used:
+            v = c if re.fullmatch(r"course(_id)?", p) else (tp if re.fullmatch(r"topic(_id)?", p) else None)
+            if v is not None:
+                path = re.sub(r"\{" + re.escape(p) + r"\??\}", str(v), path, count=1)
+        used = [(p, tb, (c if re.fullmatch(r"course(_id)?", p) else tp if re.fullmatch(r"topic(_id)?", p) else v)) for p, tb, v in used]
+        # any other parameter still needs its own value
+        for p, tb, v in used:
+            path = path.replace("{" + p + "}", quote(str(v), safe=""), 1).replace("{" + p + "?}", quote(str(v), safe=""), 1)
     return path, used
 
 

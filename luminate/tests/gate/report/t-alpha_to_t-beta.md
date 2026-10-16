@@ -1,16 +1,16 @@
-# Isolation gate: t-alpha attacking t-beta  (run 10151644)
+# Isolation gate: t-alpha attacking t-beta  (run 10161904)
 
 Operations: 699 (439 in the OpenAPI spec; the rest are routes the spec omits).
 
 | outcome | count |
 |---|---|
-| BLOCKED | 106 |
-| LIST | 318 |
+| BLOCKED | 117 |
+| LIST | 309 |
 | NO-ROUTE | 22 |
 | NOT-FOUND-500 | 4 |
-| PROVEN | 123 |
+| PROVEN | 122 |
 | SKIPPED | 3 |
-| STOCK-DEFECT | 123 |
+| STOCK-DEFECT | 122 |
 
 PROVEN = the victim's control request found the resource and the attack did not. BLOCKED = attack stopped, control inconclusive. LIST = no id to attack (leak scan only). NO-ROUTE = spec operation the application does not serve.
 
@@ -64,9 +64,9 @@ PROVEN = the victim's control request found the resource and the attack did not.
 - LIST `GET /api/admin/questionnaire` attack 200 control 200  ids: []
 - LIST `GET /api/admin/questionnaire-models` attack 200 control 200  ids: []
 - LIST `GET /api/admin/questionnaire/report/{}` attack 404 control 404  ids: [('id', None)]
-- LIST `GET /api/admin/questionnaire/report/{}/{}` attack 404 control 404  ids: [('id', None), ('model_type_id', None)]
-- LIST `GET /api/admin/questionnaire/report/{}/{}/{}` attack 404 control 404  ids: [('id', None), ('model_type_id', None), ('model_id', None)]
-- BLOCKED `GET /api/admin/questionnaire/{}/{}/{}/export` attack 404 control 404  ids: [('model_type_title', None), ('model_id', None), ('id', 'questionnaires')]
+- BLOCKED `GET /api/admin/questionnaire/report/{}/{}` attack 404 control 404  ids: [('id', None), ('model_type_id', 'questionnaire_model_types')]
+- BLOCKED `GET /api/admin/questionnaire/report/{}/{}/{}` attack 404 control 404  ids: [('id', None), ('model_type_id', 'questionnaire_model_types'), ('model_id', 'model_fields_metadata')]
+- BLOCKED `GET /api/admin/questionnaire/{}/{}/{}/export` attack 404 control 404  ids: [('model_type_title', None), ('model_id', 'model_fields_metadata'), ('id', 'questionnaires')]
 - LIST `GET /api/admin/recommender/analytics/aggregated-frames/{}` attack 422 control 422  ids: [('id', None)]
 - BLOCKED `GET /api/admin/recommender/analytics/{}/{}/{}` attack 403 control 403  ids: [('modelType', 'questionnaire_model_types'), ('modelId', None), ('id', None)]
 - BLOCKED `GET /api/admin/recommender/course/{}` attack 404 control 422  ids: [('courseId', 'courses')]
@@ -85,6 +85,7 @@ PROVEN = the victim's control request found the resource and the attack did not.
 - LIST `GET /api/admin/stats/cart` attack 200 control 200  ids: []
 - BLOCKED `GET /api/admin/stats/course/{}/export` attack 422 control 422  ids: [('course_id', 'courses')]
 - LIST `GET /api/admin/stats/date-range` attack 200 control 200  ids: []
+- BLOCKED `GET /api/admin/stats/topic/{}` attack 422 control 500  ids: [('topic_id', 'topics')]
 - BLOCKED `GET /api/admin/stats/topic/{}/export` attack 422 control 422  ids: [('topic_id', 'topics')]
 - LIST `GET /api/admin/tags/unique` attack 200 control 200  ids: []
 - LIST `GET /api/admin/tags/{}` attack 404 control 404  ids: [('tag', None)]
@@ -159,21 +160,21 @@ PROVEN = the victim's control request found the resource and the attack did not.
 - LIST `GET /api/payments-gateways/callback/{}` attack 404 control 404  ids: [('payment', None)]
 - LIST `GET /api/pdfs` attack 200 control 200  ids: []
 - LIST `GET /api/pdfs/generate/{}` attack 404 control 404  ids: [('id', None)]
-- LIST `GET /api/pdfs/{}` attack 404 control 404  ids: [('id', None)]
+- BLOCKED `GET /api/pdfs/{}` attack 404 control 404  ids: [('id', 'topic_pdfs')]
 - BLOCKED `GET /api/products` attack 422 control 422  ids: []
 - LIST `GET /api/products/my` attack 403 control 403  ids: []
 - LIST `GET /api/profile/me` attack 200 control 200  ids: []
 - LIST `GET /api/profile/settings` attack 200 control 200  ids: []
-- LIST `GET /api/questionnaire/stars/{}/{}` attack 404 control 404  ids: [('model_type_title', None), ('model_id', None)]
-- LIST `GET /api/questionnaire/{}/{}` attack 422 control 422  ids: [('model_type_title', None), ('model_id', None)]
-- BLOCKED `GET /api/questionnaire/{}/{}/questions/{}/answers` attack 404 control 404  ids: [('model_type_title', None), ('model_id', None), ('question_id', 'questionnaires')]
-- BLOCKED `GET /api/questionnaire/{}/{}/questions/{}/stars` attack 404 control 404  ids: [('model_type_title', None), ('model_id', None), ('question_id', 'questionnaires')]
-- BLOCKED `GET /api/questionnaire/{}/{}/{}` attack 404 control 404  ids: [('model_type_title', None), ('model_id', None), ('id', 'questionnaires')]
+- BLOCKED `GET /api/questionnaire/stars/{}/{}` attack 404 control 404  ids: [('model_type_title', None), ('model_id', 'model_fields_metadata')]
+- BLOCKED `GET /api/questionnaire/{}/{}` attack 422 control 422  ids: [('model_type_title', None), ('model_id', 'model_fields_metadata')]
+- BLOCKED `GET /api/questionnaire/{}/{}/questions/{}/answers` attack 404 control 404  ids: [('model_type_title', None), ('model_id', 'model_fields_metadata'), ('question_id', 'topic_gift_questions')]
+- BLOCKED `GET /api/questionnaire/{}/{}/questions/{}/stars` attack 404 control 404  ids: [('model_type_title', None), ('model_id', 'model_fields_metadata'), ('question_id', 'topic_gift_questions')]
+- BLOCKED `GET /api/questionnaire/{}/{}/{}` attack 404 control 404  ids: [('model_type_title', None), ('model_id', 'model_fields_metadata'), ('id', 'questionnaires')]
 - BLOCKED `GET /api/quiz-attempts/{}` attack 404 control 403  ids: [('id', 'topic_gift_quiz_attempts')]
 - LIST `GET /api/scorm/play/{}` attack 404 control 404  ids: [('uuid', None)]
 - LIST `GET /api/scorm/service-worker` attack 200 control 200  ids: []
 - LIST `GET /api/scorm/show/{}` attack 404 control 404  ids: [('uuid', None)]
-- LIST `GET /api/scorm/track/{}/{}` attack 401 control 200  ids: [('scoId', None), ('key', None)]
+- LIST `GET /api/scorm/track/{}/{}` attack 200 control 200  ids: [('scoId', None), ('key', None)]
 - LIST `GET /api/scorm/zip/{}` attack 200 control 200  ids: [('uuid', None)]
 - LIST `GET /api/settings` attack 200 control 200  ids: []
 - BLOCKED `GET /api/settings/{}/{}` attack 404 control 404  ids: [('group', 'groups'), ('key', None)]
@@ -320,7 +321,7 @@ PROVEN = the victim's control request found the resource and the attack did not.
 - LIST `POST /api/products/cancel/{}` attack 403 control 403  ids: [('id', None)]
 - LIST `POST /api/profile/delete/init` attack 422 control 422  ids: []
 - LIST `POST /api/profile/upload-avatar` attack 422 control 422  ids: []
-- BLOCKED `POST /api/questionnaire/{}/{}/{}` attack 404 control 404  ids: [('model_type_title', None), ('model_id', None), ('id', 'questionnaires')]
+- BLOCKED `POST /api/questionnaire/{}/{}/{}` attack 404 control 404  ids: [('model_type_title', None), ('model_id', 'model_fields_metadata'), ('id', 'questionnaires')]
 - BLOCKED `POST /api/quiz-answers` attack 404 control 403  ids: []
 - BLOCKED `POST /api/quiz-answers/all` attack 404 control 403  ids: []
 - BLOCKED `POST /api/quiz-attempts` attack 404 control 400  ids: []
@@ -358,7 +359,7 @@ PROVEN = the victim's control request found the resource and the attack did not.
 - BLOCKED `PUT /api/admin/lessons/{}` attack 403 control 422  ids: [('lesson', 'lessons')]
 - BLOCKED `PUT /api/admin/products/{}` attack 404 control 500  ids: [('id', 'products')]
 - BLOCKED `PATCH /api/admin/question/{}` attack 404 control 404  ids: [('id', 'topic_gift_questions')]
-- BLOCKED `PATCH /api/admin/questionnaire/assign/{}/{}/{}/{}` attack 404 control 404  ids: [('model_type_title', None), ('model_id', None), ('id', None), ('target_group', 'groups')]
+- BLOCKED `PATCH /api/admin/questionnaire/assign/{}/{}/{}/{}` attack 404 control 404  ids: [('model_type_title', None), ('model_id', 'model_fields_metadata'), ('id', None), ('target_group', 'groups')]
 - BLOCKED `PATCH /api/admin/questionnaire/{}` attack 404 control 422  ids: [('id', 'questionnaires')]
 - LIST `PATCH /api/admin/quiz-answers/{}` attack 404 control 404  ids: [('id', None)]
 - BLOCKED `PATCH /api/admin/roles/{}` attack 404 control 404  ids: [('name', None)]
@@ -390,7 +391,7 @@ PROVEN = the victim's control request found the resource and the attack did not.
 - LIST `PUT /api/profile/me-auth` attack 422 control 422  ids: []
 - LIST `PUT /api/profile/password` attack 422 control 422  ids: []
 - LIST `PUT /api/profile/settings` attack 200 control 200  ids: []
-- LIST `PUT /oauth/clients/{}` attack 401 control 401  ids: [('client_id', None)]
+- BLOCKED `PUT /oauth/clients/{}` attack 401 control 401  ids: [('client_id', 'oauth_clients')]
 - LIST `PATCH /trax/api/{}/xapi/ext/activities/{}` attack 423 control 423  ids: [('source', None), ('activity', None)]
 - LIST `PUT /trax/api/{}/xapi/ext/activities/{}` attack 423 control 423  ids: [('source', None), ('activity', None)]
 - LIST `PATCH /trax/api/{}/xapi/ext/activity_profiles/{}` attack 423 control 423  ids: [('source', None), ('activity_profile', None)]
@@ -412,7 +413,7 @@ PROVEN = the victim's control request found the resource and the attack did not.
 - LIST `DELETE /api/admin/hh5p/unused` attack 200 control 200  ids: []
 - LIST `DELETE /api/admin/model-fields` attack 404 control 404  ids: []
 - BLOCKED `DELETE /api/admin/question/{}` attack 404 control 404  ids: [('id', 'topic_gift_questions')]
-- BLOCKED `DELETE /api/admin/questionnaire/unassign/{}/{}/{}/{}` attack 404 control 404  ids: [('model_type_title', None), ('model_id', None), ('id', None), ('target_group', 'groups')]
+- BLOCKED `DELETE /api/admin/questionnaire/unassign/{}/{}/{}/{}` attack 404 control 404  ids: [('model_type_title', None), ('model_id', 'model_fields_metadata'), ('id', None), ('target_group', 'groups')]
 - LIST `DELETE /api/admin/roles/{}` attack 200 control 200  ids: [('name', None)]
 - LIST `DELETE /api/admin/scorm/{}` attack 404 control 404  ids: [('scormModel', None)]
 - LIST `DELETE /api/admin/tags` attack 404 control 404  ids: []
@@ -437,9 +438,10 @@ PROVEN = the victim's control request found the resource and the attack did not.
 - BLOCKED `DELETE /api/tasks/notes/{}` attack 404 control 404  ids: [('id', 'task_notes')]
 - LIST `DELETE /api/topic-project-solutions/{}` attack 404 control 404  ids: [('id', None)]
 - LIST `DELETE /oauth/authorize` attack 401 control 401  ids: []
-- LIST `DELETE /oauth/clients/{}` attack 401 control 401  ids: [('client_id', None)]
-- LIST `DELETE /oauth/personal-access-tokens/{}` attack 401 control 401  ids: [('token_id', None)]
-- LIST `DELETE /oauth/tokens/{}` attack 401 control 401  ids: [('token_id', None)]
+- BLOCKED `DELETE /oauth/clients/{}` attack 401 control 401  ids: [('client_id', 'oauth_clients')]
+- BLOCKED `DELETE /oauth/personal-access-tokens/{}` attack 401 control 401  ids: [('token_id', 'oauth_access_tokens')]
+- BLOCKED `DELETE /oauth/tokens/{}` attack 401 control 401  ids: [('token_id', 'oauth_access_tokens')]
+- BLOCKED `DELETE /trax/api/front/clients/{}` attack 401 control 500  ids: [('client', 'oauth_clients')]
 - LIST `DELETE /trax/api/{}/xapi/ext/activities/{}` attack 423 control 423  ids: [('source', None), ('activity', None)]
 - LIST `DELETE /trax/api/{}/xapi/ext/activity_profiles/{}` attack 423 control 423  ids: [('source', None), ('activity_profile', None)]
 - LIST `DELETE /trax/api/{}/xapi/ext/agent_profiles/{}` attack 423 control 423  ids: [('source', None), ('agent_profile', None)]
